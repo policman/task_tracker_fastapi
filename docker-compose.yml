@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # --- База данных ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: task_tracker_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-task_tracker}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # --- Кэш и Result Backend для Celery ---
+  redis:
+    image: redis:7-alpine
+    container_name: task_tracker_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # --- Message Broker для Celery ---
+  rabbitmq:
+    # Используем образ с management-плагином, чтобы была веб-админка
+    image: rabbitmq:3-management-alpine
+    container_name: task_tracker_rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"    # Порт для работы приложения
+      - "15672:15672"  # Порт для веб-интерфейса (RabbitMQ Management)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # --- S3 Файловое хранилище ---
+  minio:
+    image: minio/minio
+    container_name: task_tracker_minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin12345}
+    # Запускаем сервер и указываем порт для веб-консоли
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"    # Порт для API (S3)
+      - "9001:9001"    # Порт для веб-интерфейса (Console)
+    volumes:
+      - minio_data:/data
+
+# Объявляем тома, чтобы данные не исчезали при остановке контейнеров
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  minio_data:
