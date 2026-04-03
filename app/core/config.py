@@ -1,15 +1,21 @@
-from pydantic import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, PostgresDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class RunConfig(BaseModel):
+    host: str = "0.0.0.0"
+    port: int = 8000
+
+class ApiPrefix(BaseModel):
+    prefix: str = "/api/v1"
+
+class DatabaseConfig(BaseModel):
+    url: PostgresDsn
+
 
 class Settings(BaseSettings):
-    POSGRES_USER: str
-    POSGRES_PASSWORD: str
-    POSGRES_HOST: str
-    POSGRES_PORT: str
-    POSGRES_DB: str
-
-    @property
-    def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    run: RunConfig = RunConfig()
+    api: ApiPrefix = ApiPrefix()
+    db: DatabaseConfig
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
