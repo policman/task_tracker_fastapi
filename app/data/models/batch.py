@@ -1,7 +1,7 @@
 import enum
 from sqlalchemy import ForeignKey, String, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base, TimestampMixin
+from data.models.base import Base, TimestampMixin
 
 
 # Определяем статусы партии через Enum
