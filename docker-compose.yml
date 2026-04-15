@@ -15,7 +15,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # --- Кэш и Result Backend для Celery ---
   redis:
     image: redis:7-alpine
     container_name: task_tracker_redis
@@ -25,9 +24,9 @@ services:
     volumes:
       - redis_data:/data
 
-  # --- Message Broker для Celery ---
+  # --- Message Broker для Celery
+  #    # Используем образ с management-плагином, чтобы была веб-админка ---
   rabbitmq:
-    # Используем образ с management-плагином, чтобы была веб-админка
     image: rabbitmq:3-management-alpine
     container_name: task_tracker_rabbitmq
     restart: always
