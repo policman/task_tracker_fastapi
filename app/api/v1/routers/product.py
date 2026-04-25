@@ -19,10 +19,3 @@ async def create_products(
 
     return created_products
 
-
-#TODO: сделать репо для create_product и ручки 5, 6
-# проверить работоспособность
-# закомитить изменения
-
-
-#TODO: разобраться с celery
