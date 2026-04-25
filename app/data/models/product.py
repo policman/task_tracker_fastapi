@@ -1,13 +1,22 @@
-from sqlalchemy import String
+from datetime import datetime
+
+from .base import Base
+from sqlalchemy import ForeignKey, Index, text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from data.models.base import Base, TimestampMixin
+from .types import int_pk, created_at_type
 
-class Product(TimestampMixin, Base):
-    __tablename__ = "products"
+class Product(Base):
+    __tablename__ = 'products'
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    id: Mapped[int_pk]
+    unique_code: Mapped[str] = mapped_column(unique=True, index=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.id"), index=True)
+    is_aggregated: Mapped[bool] = mapped_column(server_default=text("false"), index=True)
+    aggregated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[created_at_type]
 
-    # Связь: один продукт может производиться во многих партиях
-    batches = relationship("Batch", back_populates="product")
+    batch: Mapped["Batch"] = relationship(back_populates="products")
+
+    __table_args__ = (
+        Index('idx_product_batch_aggregated', 'batch_id', 'is_aggregated'),
+    )
