@@ -2,13 +2,11 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker
 )
 
-from config import settings
-
+from .config import settings
 
 class DatabaseHelper:
     def __init__(
@@ -19,7 +17,8 @@ class DatabaseHelper:
         pool_size: int = 5,
         max_overflow: int = 10,
     ) -> None:
-        self.engine: AsyncEngine = create_async_engine(
+
+        self.engine = create_async_engine(
             url=database_url,
             echo=echo,
             echo_pool=echo_pool,
@@ -27,7 +26,7 @@ class DatabaseHelper:
             max_overflow=max_overflow,
         )
 
-        self.session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        self.session_factory = async_sessionmaker(
             bind=self.engine,
             autocommit=False,
             autoflush=False,
@@ -42,5 +41,5 @@ class DatabaseHelper:
             yield session
 
 db_helper = DatabaseHelper(
-    database_url=settings
+    database_url=settings.database_url
 )
