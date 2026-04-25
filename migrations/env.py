@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.core.config import settings
-from data.models import Base
+from app.data.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
