@@ -46,7 +46,7 @@ services:
     restart: always
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin12345}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin123}
     # Запускаем сервер и указываем порт для веб-консоли
     command: server /data --console-address ":9001"
     ports:
