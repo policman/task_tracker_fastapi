@@ -32,5 +32,12 @@ class ProductRepository:
 
         return result.rowcount
 
+    async def get_batch_products(self, batch_id: int) -> list[Product]:
+        result = await self.session.scalars(
+            select(Product)
+            .where(Product.batch_id == batch_id)
+        )
+        return list(result.all())
+
 
 

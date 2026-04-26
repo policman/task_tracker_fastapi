@@ -3,6 +3,7 @@ from http.client import HTTPException
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.tasks.production_tasks import generate_batch_report
 from app.tasks.production_tasks import aggregate_products_batch
 from app.api.v1.schemas.batch import BatchFilter
 from app.api.v1.schemas.product import ProductResponse, ProductCreate, AggregateProductRequest
@@ -46,6 +47,24 @@ async def get_batch(
 
     return batch
 
+@router.get("/{batch_id}/products", response_model=list[ProductResponse])
+async def get_batch_products(
+        batch_id: int,
+        session: AsyncSession = Depends(db_helper.session_getter)
+):
+    batch_repo: BatchRepository = BatchRepository(session)
+    batch = await batch_repo.get_batch(batch_id)
+
+    if not batch:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Batch with ID {batch_id} not found"
+        )
+
+    product_repo = ProductRepository(session)
+    batch_products = await product_repo.get_batch_products(batch_id)
+
+    return batch_products
 
 @router.get("", response_model=list[BatchResponse])
 async def get_filtered_batches(
@@ -117,8 +136,15 @@ def aggregate_products_async(
     }
 
 
+@router.post("/{batch_id}/reports", status_code=status.HTTP_202_ACCEPTED)
+def request_batch_report(batch_id: int):
+    task = generate_batch_report.delay(batch_id)
 
-
+    return {
+        "task_id": task.id,
+        "status": "PENDING",
+        "message": "Report generation started"
+    }
 
 
 
