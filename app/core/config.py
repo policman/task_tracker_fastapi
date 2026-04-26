@@ -20,11 +20,16 @@ class MinioSettings(BaseSettings):
     bucket_reports: str = "reports"
     bucket_imports: str = "imports"
 
+class CelerySettings(BaseSettings):
+    broker_url: str = "amqp://guest:guest@127.0.0.1:5672//"
+    result_backend: str = "redis://127.0.0.1:6379/0"
+
 
 class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     minio: MinioSettings = MinioSettings()
+    celery: CelerySettings = CelerySettings()
 
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
