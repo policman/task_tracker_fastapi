@@ -1,19 +1,19 @@
 from http.client import HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.v1.schemas.batch import BatchFilter
-from api.v1.schemas.product import ProductResponse, ProductCreate, AggregateProductRequest
+from app.tasks.production_tasks import aggregate_products_batch
+from app.api.v1.schemas.batch import BatchFilter
+from app.api.v1.schemas.product import ProductResponse, ProductCreate, AggregateProductRequest
 from app.api.v1.schemas.batch import BatchCreate, BatchResponse, BatchUpdate
 from app.data.repositories.batch_repository import BatchRepository
 from app.core.database import db_helper
-from data.repositories.product_repository import ProductRepository
+from app.data.repositories.product_repository import ProductRepository
 
 router = APIRouter(prefix="/batches", tags=["Batches"])
 
 
-# В ТЗ клиент присылает массив партий, поэтому принимаем List[BatchCreate]
 @router.post("", response_model=list[BatchResponse], status_code=201)
 async def create_batches(
     batches_in: list[BatchCreate],
@@ -85,7 +85,7 @@ async def update_batch(
     return updated_batch
 
 @router.post("/{batch_id}/aggregate")
-async def aggregate_product (
+async def aggregate_products(
     batch_id: int,
     payload: AggregateProductRequest,
     session: AsyncSession = Depends(db_helper.session_getter)
@@ -103,7 +103,18 @@ async def aggregate_product (
     return {"message": f"Successfully aggregated {updated_count} products."}
 
 
+@router.post("/{batch_id}/aggregate-async", status_code=status.HTTP_202_ACCEPTED)
+def aggregate_products_async(
+        batch_id: int,
+        payload: AggregateProductRequest
+):
+    task = aggregate_products_batch.delay(batch_id, payload.unique_codes)
 
+    return {
+        "task_id": task.id,
+        "status": "PENDING",
+        "message": "Aggregation task started in background"
+    }
 
 
 

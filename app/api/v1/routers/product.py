@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import db_helper
-from api.v1.schemas.product import ProductResponse, ProductCreate
+from app.api.v1.schemas.product import ProductResponse, ProductCreate
 from app.data.repositories.product_repository import ProductRepository
 
 router = APIRouter(prefix="/products", tags=["products"])

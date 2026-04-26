@@ -2,8 +2,8 @@ import uvicorn
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from core.config import settings
-from api.v1.routers import product, batches, files
+from app.core.config import settings
+from app.api.v1.routers import product, batches, files, tasks
 from app.storage.minio_service import storage_service
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ app = FastAPI(
 app.include_router(batches.router, prefix="/api/v1")
 app.include_router(product.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

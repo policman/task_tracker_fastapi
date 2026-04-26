@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
-from data.models import Product
-from sqlalchemy.engine import CursorResult
+from app.data.models import Product
 
 class ProductRepository:
     def __init__(self, session: AsyncSession):
