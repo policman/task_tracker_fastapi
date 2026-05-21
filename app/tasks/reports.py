@@ -1,5 +1,6 @@
 import asyncio
 import os
+import uuid
 from datetime import datetime, timezone, timedelta
 
 from app.core.config import settings
@@ -39,7 +40,7 @@ def generate_batch_report(
                     raise ValueError(f"Unsupported format: {report_format}")
 
 
-            object_name = f"batch_{batch_id}_report.{ext}"
+            object_name = f"batch_{batch_id}_report_{uuid.uuid4().hex}.{ext}"
             file_size = os.path.getsize(file_path)
             expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 

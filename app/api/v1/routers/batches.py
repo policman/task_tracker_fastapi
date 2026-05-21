@@ -214,9 +214,7 @@ async def export_batches(filters: BatchExportFilter, format_file: str = "excel")
 
     task = export_batches_to_file.delay(filters.model_dump(exclude_none=True), format_file)
 
-    return {
-        "task_id": task.id,
-    }
+    return {"task_id": task.id}
 
 
 
