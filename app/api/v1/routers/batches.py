@@ -1,34 +1,61 @@
-from http.client import HTTPException
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.tasks.production_tasks import generate_batch_report
-from app.tasks.production_tasks import aggregate_products_batch
-from app.api.v1.schemas.batch import BatchFilter
-from app.api.v1.schemas.product import ProductResponse, ProductCreate, AggregateProductRequest
+from app.tasks.reports import generate_batch_report
+from app.tasks.aggregation import aggregate_products_batch
+from app.api.v1.schemas.batch import BatchFilter, BatchExportFilter, ReportRequestSchema
+from app.api.v1.schemas.product import ProductResponse, ProductCreate, AggregateProductsRequest
 from app.api.v1.schemas.batch import BatchCreate, BatchResponse, BatchUpdate
 from app.data.repositories.batch_repository import BatchRepository
 from app.core.database import db_helper
 from app.data.repositories.product_repository import ProductRepository
+from app.core.config import settings
+from app.storage.minio_service import storage_service
+from app.tasks.imports import import_batches_from_file
+from app.tasks.exports import export_batches_to_file
 
 router = APIRouter(prefix="/batches", tags=["Batches"])
 
+from fastapi import HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 
-@router.post("", response_model=list[BatchResponse], status_code=201)
+
+@router.post("", response_model=list[BatchResponse], status_code=status.HTTP_201_CREATED)
 async def create_batches(
-    batches_in: list[BatchCreate],
-    session: AsyncSession = Depends(db_helper.session_getter)
+        batches_in: list[BatchCreate],
+        session: AsyncSession = Depends(db_helper.session_getter)
 ):
     repo = BatchRepository(session)
     created_batches = []
 
-    for batch_pydantic in batches_in:
-        batch_dict = batch_pydantic.model_dump()
-        new_batch = await repo.create_batch(batch_dict)
-        created_batches.append(new_batch)
+    try:
+        for batch_pydantic in batches_in:
+            # Бизнес-логика: если нужно, проверяем дубликаты тут
+            # exists = await repo.exists_by_number_date(...)
+            # if exists: raise HTTPException(...)
 
-    return created_batches
+            batch_dict = batch_pydantic.model_dump()
+
+            # Внутри репо делается flush(), подготавливая SQL-запросы
+            new_batch = await repo.create_batch(batch_dict)
+            created_batches.append(new_batch)
+
+        # САМОЕ ГЛАВНОЕ: Фиксируем транзакцию!
+        # Выполняется ровно ОДИН раз для всего списка.
+        await session.commit()
+
+        return created_batches
+
+    except SQLAlchemyError as e:
+        # Если хотя бы одна партия вызвала ошибку БД (например, уникальный индекс),
+        # мы откатываем ВООБЩЕ ВСЕ добавленные в цикле партии.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка сохранения в БД. Изменения отменены."
+        )
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)
@@ -49,8 +76,8 @@ async def get_batch(
 
 @router.get("/{batch_id}/products", response_model=list[ProductResponse])
 async def get_batch_products(
-        batch_id: int,
-        session: AsyncSession = Depends(db_helper.session_getter)
+    batch_id: int,
+    session: AsyncSession = Depends(db_helper.session_getter)
 ):
     batch_repo: BatchRepository = BatchRepository(session)
     batch = await batch_repo.get_batch(batch_id)
@@ -68,8 +95,8 @@ async def get_batch_products(
 
 @router.get("", response_model=list[BatchResponse])
 async def get_filtered_batches(
-        filters: BatchFilter = Depends(),
-        session: AsyncSession = Depends(db_helper.session_getter)
+    filters: BatchFilter = Depends(),
+    session: AsyncSession = Depends(db_helper.session_getter)
 ):
     repo = BatchRepository(session)
 
@@ -106,12 +133,12 @@ async def update_batch(
 @router.post("/{batch_id}/aggregate")
 async def aggregate_products(
     batch_id: int,
-    payload: AggregateProductRequest,
+    payload: AggregateProductsRequest,
     session: AsyncSession = Depends(db_helper.session_getter)
 ) -> dict:
     repo = ProductRepository(session)
 
-    updated_count = await repo.aggregate_products(batch_id, payload.unique_codes)
+    updated_count = await repo.aggregate_products_batch(batch_id, payload.unique_codes)
 
     if updated_count == 0:
         raise HTTPException(
@@ -125,9 +152,9 @@ async def aggregate_products(
 @router.post("/{batch_id}/aggregate-async", status_code=status.HTTP_202_ACCEPTED)
 def aggregate_products_async(
         batch_id: int,
-        payload: AggregateProductRequest
+        products_list: AggregateProductsRequest
 ):
-    task = aggregate_products_batch.delay(batch_id, payload.unique_codes)
+    task = aggregate_products_batch.delay(batch_id, products_list.unique_codes)
 
     return {
         "task_id": task.id,
@@ -137,13 +164,58 @@ def aggregate_products_async(
 
 
 @router.post("/{batch_id}/reports", status_code=status.HTTP_202_ACCEPTED)
-def request_batch_report(batch_id: int):
-    task = generate_batch_report.delay(batch_id)
+async def batch_generate_report(
+    batch_id: int,
+    payload: ReportRequestSchema
+):
+    task = generate_batch_report.delay(
+        batch_id,
+        payload.format,
+        payload.email
+    )
+
+    return {
+        "task_id": task.id,
+        "status": "PENDING"
+    }
+
+@router.post("/import", status_code=status.HTTP_202_ACCEPTED)
+async def import_batches(file: UploadFile = File(...)):
+    ext = file.filename.split(".")[-1]
+
+    if ext not in ["csv", "xlsx"]:
+        raise HTTPException(status_code=400, detail="Only .csv and .xlsx files allowed")
+
+    object_name = f"import_{uuid.uuid4().hex}.{ext}"
+
+    try:
+        storage_service.upload_stream(
+            bucket=settings.minio.bucket_imports,
+            object_name=object_name,
+            file_data=file.file,
+            length=file.size,
+            content_type=file.content_type
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"MinIO error: {str(e)}")
+
+    task = import_batches_from_file.delay(object_name)
 
     return {
         "task_id": task.id,
         "status": "PENDING",
-        "message": "Report generation started"
+        "message": "File uploaded, import started"
+    }
+
+@router.post("/export", status_code=status.HTTP_202_ACCEPTED)
+async def export_batches(filters: BatchExportFilter, format_file: str = "excel"):
+    if format_file not in ["csv", "excel"]:
+        raise HTTPException(status_code=400, detail="Only .csv and .xlsx files allowed")
+
+    task = export_batches_to_file.delay(filters.model_dump(exclude_none=True), format_file)
+
+    return {
+        "task_id": task.id,
     }
 
 

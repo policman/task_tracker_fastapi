@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Отчет по партии</title>
+    <style>
+        body { font-family: sans-serif; color: #333; line-height: 1.6; }
+        h1 { text-align: center; color: #2c3e50; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 5px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 20px; }
+        .info-grid p { margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; color: #333; }
+        .status-yes { color: green; font-weight: bold; }
+        .status-no { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Отчет по партии № {{ batch.batch_number }}</h1>
+
+    <h2>Сводная информация</h2>
+    <div class="info-grid">
+        <div>
+            <p><strong>Дата партии:</strong> {{ batch.batch_date.strftime('%d.%m.%Y') }}</p>
+            <p><strong>Статус:</strong> {{ 'Закрыта' if batch.is_closed else 'Открыта' }}</p>
+            <p><strong>Рабочий центр:</strong> Цех №{{ batch.work_center_id }}</p>
+            <p><strong>Номенклатура:</strong> {{ batch.nomenclature }}</p>
+        </div>
+        <div>
+            <p><strong>Смена:</strong> {{ batch.shift }} смена</p>
+            <p><strong>Бригада:</strong> Бригада {{ batch.team }}</p>
+            <p><strong>Время:</strong> {{ batch.shift_start.strftime('%H:%M') }} - {{ batch.shift_end.strftime('%H:%M') }}</p>
+        </div>
+    </div>
+
+    <h2>Статистика выполнения</h2>
+    <div class="info-grid">
+        <div>
+            <p><strong>Всего продукции:</strong> {{ stats.total_products }}</p>
+            <p><strong>Агрегировано:</strong> {{ stats.aggregated_products }}</p>
+            <p><strong>Осталось:</strong> {{ stats.unaggregated_products }}</p>
+        </div>
+        <div>
+            <p><strong>Процент выполнения:</strong> {{ stats.percent_aggregated }}%</p>
+            <p><strong>Средняя скорость:</strong> {{ stats.avg_speed if stats.avg_speed else '-' }} ед/час</p>
+        </div>
+    </div>
+
+    <h2>Детализация продукции</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Уникальный код</th>
+                <th>Агрегирован</th>
+                <th>Время агрегации</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in products %}
+            <tr>
+                <td>{{ p.id }}</td>
+                <td>{{ p.unique_code }}</td>
+                <td class="{% if p.is_aggregated %}status-yes{% else %}status-no{% endif %}">
+                    {{ 'Да' if p.is_aggregated else 'Нет' }}
+                </td>
+                <td>{{ p.aggregated_at.strftime('%d.%m.%Y %H:%M:%S') if p.aggregated_at else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

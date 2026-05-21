@@ -3,29 +3,27 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.api.v1.routers import product, batches, files, tasks
-from app.storage.minio_service import storage_service
+from app.api.v1.routers import product, batches, tasks
+from scripts.minio_init import init_buckets
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("- Запуск сервера. Инициализация хранилища...")
+    print("Init Minio")
     try:
-        storage_service.init_buckets()
+        init_buckets()
     except Exception as e:
-        print(f"х Ошибка подключения к MinIO: {e}")
+        print(f"Minio connection error: {e}")
 
     yield
-    print("- Остановка сервера")
+
 app = FastAPI(
     title="Production Control API",
-    description="API для системы управления производством (Завод)",
     version="1.0.0",
     lifespan=lifespan
 )
 
 app.include_router(batches.router, prefix="/api/v1")
 app.include_router(product.router, prefix="/api/v1")
-app.include_router(files.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 
 

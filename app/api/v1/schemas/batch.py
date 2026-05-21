@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from .product import ProductResponse
 
 class BatchCreate(BaseModel):
@@ -21,7 +21,6 @@ class BatchCreate(BaseModel):
 class BatchUpdate(BaseModel):
     is_closed: bool | None = None
 
-
 class BatchResponse(BaseModel):
     id: int
     is_closed: bool
@@ -30,6 +29,11 @@ class BatchResponse(BaseModel):
     products: list[ProductResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+class BatchExportFilter(BaseModel):
+    is_closed: bool | None = None
+    date_from: date | None = None
+    date_to: date | None = None
 
 class BatchFilter(BaseModel):
     is_closed: bool | None = None
@@ -40,3 +44,14 @@ class BatchFilter(BaseModel):
 
     offset: int = Field(default=0)
     limit: int = Field(default=20, ge=1, le=100)
+
+class ReportRequestSchema(BaseModel):
+    format: str = "excel"
+    email: EmailStr | None = None
+
+class BatchExportFilters(BaseModel):
+    is_closed: bool | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+

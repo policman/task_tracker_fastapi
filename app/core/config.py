@@ -6,36 +6,39 @@ class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
 
-
 class ApiPrefix(BaseModel):
     prefix: str = "/api/v1"
 
-
-class MinioSettings(BaseSettings):
-    endpoint: str = "localhost:9000"
-    access_key: str = "admin"
-    secret_key: str = "admin123"
+class MinioSettings(BaseModel):
+    endpoint: str
+    access_key: str
+    secret_key: str
     secure: bool = False
-
     bucket_reports: str = "reports"
     bucket_imports: str = "imports"
+    bucket_exports: str = "exports"
 
-class CelerySettings(BaseSettings):
-    broker_url: str = "amqp://guest:guest@127.0.0.1:5672//"
-    result_backend: str = "redis://127.0.0.1:6379/0"
-
+class CelerySettings(BaseModel):
+    broker_url: str
+    result_backend: str
 
 class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
-    minio: MinioSettings = MinioSettings()
-    celery: CelerySettings = CelerySettings()
 
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
-    POSTGRES_HOST: str = "localhost"
+    POSTGRES_HOST: str
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str
+
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+
+    MINIO_ENDPOINT: str
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
+    MINIO_SECURE: bool = False
 
     @property
     def database_url(self) -> str:
@@ -49,7 +52,22 @@ class Settings(BaseSettings):
         )
         return str(url)
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    @property
+    def minio(self) -> MinioSettings:
+        return MinioSettings(
+            endpoint=self.MINIO_ENDPOINT,
+            access_key=self.MINIO_ACCESS_KEY,
+            secret_key=self.MINIO_SECRET_KEY,
+            secure=self.MINIO_SECURE,
+        )
 
+    @property
+    def celery(self) -> CelerySettings:
+        return CelerySettings(
+            broker_url=self.CELERY_BROKER_URL,
+            result_backend=self.CELERY_RESULT_BACKEND,
+        )
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
