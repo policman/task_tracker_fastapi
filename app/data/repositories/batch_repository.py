@@ -1,11 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from app.data.models.batch import Batch
 from app.data.models.work_center import WorkCenter
-
 
 class BatchRepository:
     def __init__(self, session: AsyncSession):
@@ -34,32 +33,30 @@ class BatchRepository:
         self.session.add(new_batch)
 
         await self.session.commit()
-        # await self.session.refresh(new_batch)
+        await self.session.flush()
 
-        return await self.get_batch(new_batch.id)
+        return new_batch
 
     async def get_batch(self, batch_id: int) -> Batch | None:
         return await self.session.scalar(
             select(Batch)
             .where(Batch.id == batch_id)
-            .options(selectinload(Batch.products))
+            .options(
+                selectinload(Batch.products),
+            )
         )
 
-
-    async def get_filtered_batch(self, filters: dict):
+    async def get_filtered_batch(self, filters: dict) -> list[Batch]:
         limit = filters.pop("limit", 20)
         offset = filters.pop("offset", 0)
 
-        result = await self.session.scalars(
+        return list((await self.session.scalars(
             select(Batch)
             .filter_by(**filters)
             .options(selectinload(Batch.products))
             .offset(offset)
             .limit(limit)
-        )
-
-        return list(result.all())
-
+        )).all())
 
     async def update_batch(self, batch_id: int, update_data: dict) -> Batch | None:
         batch = await self.get_batch(batch_id)
@@ -81,5 +78,43 @@ class BatchRepository:
 
         return batch
 
+    async def get_all_batches(self) -> list[Batch]:
+        return list((await self.session.scalars(select(Batch))).all())
+
+    async def exists_by_number_date(self, batch_number: int, batch_date: date) -> bool:
+        result = await self.session.scalar(
+            select(Batch)
+            .where(
+                Batch.batch_number == batch_number,
+                Batch.batch_date == batch_date
+            )
+        )
+
+        return result is not None
 
 
+    async def get_batches_for_export(self, filters: dict) -> list[Batch]:
+        query = select(Batch)
+
+        # Список условий для and_
+        conditions = []
+
+        if filters.get("is_closed") is not None:
+            conditions.append(Batch.is_closed == filters["is_closed"])
+
+        if filters.get("date_from"):
+            conditions.append(Batch.batch_date >= filters["date_from"])
+
+        if filters.get("date_to"):
+            conditions.append(Batch.batch_date <= filters["date_to"])
+
+        if filters.get("batch_number"):
+            conditions.append(Batch.batch_number == filters["batch_number"])
+
+        if conditions:
+            query = query.where(and_(*conditions))
+
+        query = query.order_by(Batch.batch_date.desc())
+
+        result = await self.session.scalars(query)
+        return list(result.all())
