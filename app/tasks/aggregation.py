@@ -27,7 +27,7 @@ def aggregate_products_batch(
                 result = await product_repo.aggregate_products_batch(batch_id, unique_codes)
                 return result
         finally:
-            db_helper.dispose()
+            await db_helper.dispose()
 
     try:
         return asyncio.run(_logic())

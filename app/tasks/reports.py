@@ -1,7 +1,7 @@
 import asyncio
 import os
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, UTC, timedelta
 
 from app.core.config import settings
 from app.celery_app import celery_app
@@ -30,11 +30,9 @@ def generate_batch_report(
             match report_format:
                 case "excel":
                     file_path = generate_batch_excel_report(batch_data, products_data, stats_data)
-                    content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     ext = "xlsx"
                 case "pdf":
                     file_path = generate_batch_pdf_report(batch_data, products_data, stats_data)
-                    content_type = "application/pdf"
                     ext = "pdf"
                 case _:
                     raise ValueError(f"Unsupported format: {report_format}")
@@ -42,14 +40,13 @@ def generate_batch_report(
 
             object_name = f"batch_{batch_id}_report_{uuid.uuid4().hex}.{ext}"
             file_size = os.path.getsize(file_path)
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+            expires_at = datetime.now(UTC) + timedelta(hours=1)
 
             try:
                 file_url = storage_service.upload_file(
                     bucket=settings.minio.bucket_reports,
                     object_name=object_name,
                     file_path=file_path,
-                    content_type=content_type,
                 )
 
             finally:

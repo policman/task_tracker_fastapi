@@ -26,9 +26,20 @@ class BatchResponse(BaseModel):
     is_closed: bool
     batch_number: int
     batch_date: date
-    products: list[ProductResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+class BatchWithProductsResponse(BaseModel):
+    id: int
+    batch_number: int
+    batch_date: date
+    is_closed: bool
+    products: list[ProductResponse]
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        from_attributes=True
+    )
 
 class BatchExportFilter(BaseModel):
     is_closed: bool | None = None
@@ -54,4 +65,9 @@ class BatchExportFilters(BaseModel):
     date_from: date | None = None
     date_to: date | None = None
 
+class BatchStatistics(BaseModel):
+    total_products: int
+    aggregated: int
+    remaining: int
+    rate: float
 

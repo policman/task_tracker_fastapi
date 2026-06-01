@@ -21,16 +21,13 @@ def export_batches_to_file(self, filters: dict, format_file: str = "excel"):
 
                 if format_file == "excel":
                     file_path = generate_batches_excel(batches_for_export)
-                    content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 else:
                     file_path = generate_batches_csv(batches_for_export)
-                    content_type = "text/csv"
 
                 presigned_url = storage_service.upload_file(
                     bucket=settings.minio.bucket_exports,
                     object_name=file_path.split("/")[-1],
                     file_path=file_path,
-                    content_type=content_type,
                 )
 
                 return {

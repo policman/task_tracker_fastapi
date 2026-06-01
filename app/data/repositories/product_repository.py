@@ -2,8 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select
 from app.data.models import Product
 from typing import Any
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
+from app.core.cache import redis_service
 
 
 class ProductRepository:
@@ -58,11 +59,15 @@ class ProductRepository:
                 )
                 .values(
                     is_aggregated=True,
-                    aggregated_at=datetime.now(timezone.utc),
+                    aggregated_at=datetime.now(UTC),
                 )
             )
             aggregated_count = len(codes_to_update)
             await self.session.commit()
+
+            await redis_service.delete("dashboard_stats")
+            await redis_service.delete(f"batch_detail:batch_id_{batch_id}")
+            await redis_service.delete(f"batch_statistics:batch_id_{batch_id}")
 
         return {
             "success": len(errors) == 0,
@@ -72,7 +77,7 @@ class ProductRepository:
             "errors": errors,
         }
 
-    async def get_batch_products(self, batch_id: int) -> list[Product]:
+    async def get_batch_with_products(self, batch_id: int) -> list[Product]:
         return list((await self.session.scalars(
             select(Product)
             .where(Product.batch_id == batch_id)
