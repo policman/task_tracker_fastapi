@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.api.v1.routers import product, batches, tasks
+from app.api.v1.routers import product, batches, tasks, analytics
 from scripts.minio_init import init_buckets
 
 @asynccontextmanager
@@ -25,7 +25,7 @@ app = FastAPI(
 app.include_router(batches.router, prefix="/api/v1")
 app.include_router(product.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
-
+app.include_router(analytics.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     uvicorn.run(
