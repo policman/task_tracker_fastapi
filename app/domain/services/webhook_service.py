@@ -57,11 +57,62 @@ class WebhookService:
 
         # Ставим задачи в Celery
         for delivery in deliveries:
-            send_webhook_delivery.delay(delivery.id)
+            send_webhook_delivery.apply_async(args=[delivery.id], countdown=2)
 
-    # ==========================================
-    # ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ ВЫЗОВА ИЗ БИЗНЕС-ЛОГИКИ
-    # ==========================================
+    async def _trigger_events_bulk(self, event_type: str, events_data: list[BaseModel]):
+        """
+        Оптимизированный метод для массовой отправки.
+        Делает SELECT подписчиков только 1 раз.
+        """
+        # 1. Ищем подписчиков ОДИН раз для всех событий
+        stmt = select(WebhookSubscription).where(
+            WebhookSubscription.is_active.is_(True), WebhookSubscription.events.any(event_type)
+        )
+        subscribers = (await self.session.scalars(stmt)).all()
+
+        if not subscribers:
+            return
+
+        # 2. Формируем все доставки в памяти
+        deliveries = []
+        for data in events_data:
+            event_payload = BaseWebhookEvent(
+                event=event_type,
+                timestamp=datetime.now(UTC),
+                data=data.model_dump(mode="json")
+            ).model_dump(mode="json")
+
+            for sub in subscribers:
+                delivery = WebhookDelivery(
+                    subscription_id=sub.id,
+                    event_type=event_type,
+                    payload=event_payload,
+                    status="pending",
+                )
+                deliveries.append(delivery)
+
+        # 3. Сохраняем все доставки одним запросом
+        self.session.add_all(deliveries)
+        await self.session.flush()
+
+        # 4. Массово ставим задачи в Celery
+        for delivery in deliveries:
+            send_webhook_delivery.apply_async(args=[delivery.id], countdown=2)
+
+    async def trigger_batches_created_bulk(self, batches: list):
+        """Принимает список созданных объектов Batch"""
+        events_data = []
+        for batch in batches:
+            data = BatchCreatedData(
+                id=batch.id,
+                batch_number=batch.batch_number,
+                batch_date=str(batch.batch_date),
+                nomenclature=batch.nomenclature,
+                work_center_id=batch.work_center_id,
+            )
+            events_data.append(data)
+
+        await self._trigger_events_bulk("batch_created", events_data)
 
     # 1. Партия создана
     async def trigger_batch_created(
@@ -70,14 +121,14 @@ class WebhookService:
         batch_number: str | int,
         batch_date: str,
         nomenclature: str,
-        work_center: str,
+        work_center_id: int,
     ):
         data = BatchCreatedData(
             id=batch_id,
             batch_number=batch_number,
             batch_date=batch_date,
             nomenclature=nomenclature,
-            work_center=work_center,
+            work_center_id=work_center_id,
         )
         await self._trigger_event("batch_created", data)
 
@@ -97,22 +148,21 @@ class WebhookService:
 
     # 4. Продукт агрегирован
     async def trigger_product_aggregated(
-        self, unique_code: str, batch_id: int, batch_number: str | int, aggregated_at: datetime
+        self, unique_codes: list[str], batch_id: int, aggregated_at: datetime
     ):
         data = ProductAggregatedData(
-            unique_code=unique_code,
+            unique_codes=unique_codes,
             batch_id=batch_id,
-            batch_number=batch_number,
             aggregated_at=aggregated_at,
         )
         await self._trigger_event("product_aggregated", data)
 
     # 5. Отчет сгенерирован
     async def trigger_report_generated(
-        self, batch_id: int, report_type: str, file_url: str, expires_at: datetime
+        self, batch_id: int, report_type: str, file_url: str
     ):
         data = ReportGeneratedData(
-            batch_id=batch_id, report_type=report_type, file_url=file_url, expires_at=expires_at
+            batch_id=batch_id, report_type=report_type, file_url=file_url
         )
         await self._trigger_event("report_generated", data)
 

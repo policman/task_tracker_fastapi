@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, JSON, ForeignKey, String, text
+from sqlalchemy import ARRAY, JSON, ForeignKey, String, text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -32,7 +32,9 @@ class WebhookDelivery(Base):
     __tablename__ = "webhook_deliveries"
 
     id: Mapped[int_pk]
-    subscription_id: Mapped[int] = mapped_column(ForeignKey("webhook_subscriptions.id"))
+    subscription_id: Mapped[int] = mapped_column(
+        ForeignKey("webhook_subscriptions.id", ondelete="CASCADE")
+    )
     event_type: Mapped[str]
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     status: Mapped[str]
@@ -42,6 +44,6 @@ class WebhookDelivery(Base):
     error_message: Mapped[str | None]
 
     created_at: Mapped[created_at_type]
-    delivered_at: Mapped[datetime | None]
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     subscription: Mapped["WebhookSubscription"] = relationship(back_populates="deliveries")

@@ -17,7 +17,7 @@ class BatchCreatedData(BaseModel):
     batch_number: str | int
     batch_date: str
     nomenclature: str
-    work_center: str
+    work_center_id: int
 
 
 # --- 2. batch_updated ---
@@ -37,9 +37,8 @@ class BatchClosedData(BaseModel):
 
 # --- 4. product_aggregated ---
 class ProductAggregatedData(BaseModel):
-    unique_code: str
+    unique_codes: list[str]
     batch_id: int
-    batch_number: str | int
     aggregated_at: datetime
 
 
@@ -48,7 +47,6 @@ class ReportGeneratedData(BaseModel):
     batch_id: int
     report_type: str
     file_url: str | HttpUrl
-    expires_at: datetime
 
 
 # --- 6. import_completed ---

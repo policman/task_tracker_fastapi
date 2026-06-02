@@ -16,7 +16,7 @@ class ProductRepository:
         new_products = [Product(**product) for product in products]
 
         self.session.add_all(new_products)
-        await self.session.commit()
+        await self.session.flush()
 
         for product in new_products:
             await self.session.refresh(product)
@@ -58,11 +58,8 @@ class ProductRepository:
                 )
             )
             aggregated_count = len(codes_to_update)
-            await self.session.commit()
+            await self.session.flush()
 
-            await redis_service.delete("dashboard_stats")
-            await redis_service.delete(f"batch_detail:batch_id_{batch_id}")
-            await redis_service.delete(f"batch_statistics:batch_id_{batch_id}")
 
         return {
             "success": len(errors) == 0,
@@ -70,6 +67,7 @@ class ProductRepository:
             "aggregated": aggregated_count,
             "failed": len(errors),
             "errors": errors,
+            "updated_codes": codes_to_update,
         }
 
     async def get_batch_with_products(self, batch_id: int) -> list[Product]:

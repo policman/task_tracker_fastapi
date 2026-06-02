@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, UTC
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,7 @@ from app.tasks.aggregation import aggregate_products_batch
 from app.tasks.exports import export_batches_to_file
 from app.tasks.imports import import_batches_from_file
 from app.tasks.reports import generate_batch_report
+from app.domain.services.webhook_service import WebhookService
 
 router = APIRouter(prefix="/batches", tags=["Batches"])
 
@@ -35,14 +37,16 @@ async def create_batches(
     batches_in: list[BatchCreate], session: AsyncSession = Depends(db_helper.session_getter)
 ):
     repo = BatchRepository(session)
+    webhook_service = WebhookService(session)
     created_batches = []
 
     try:
         for batch_pydantic in batches_in:
             batch_dict = batch_pydantic.model_dump()
-
             new_batch = await repo.create_batch(batch_dict)
             created_batches.append(new_batch)
+
+        await webhook_service.trigger_batches_created_bulk(created_batches)
 
         await session.commit()
 
@@ -126,6 +130,8 @@ async def update_batch(
     session: AsyncSession = Depends(db_helper.session_getter),
 ):
     repo = BatchRepository(session)
+    webhook_service = WebhookService(session)
+
     update_dict = update_schema.model_dump(exclude_unset=True)
 
     if not update_dict:
@@ -135,6 +141,23 @@ async def update_batch(
 
     if not updated_batch:
         raise HTTPException(status_code=404, detail=f"Batch with ID {batch_id} not found")
+
+    await webhook_service.trigger_batch_updated(
+        batch_id=updated_batch.id,
+        batch_number=updated_batch.batch_number,
+        changes=update_dict
+    )
+
+    if update_dict.get("is_closed") is True:
+        stats = {}
+        await webhook_service.trigger_batch_closed(
+            batch_id=updated_batch.id,
+            batch_number=updated_batch.batch_number,
+            closed_at=updated_batch.closed_at,
+            statistics=stats
+        )
+
+    await session.commit()
 
     await redis_service.delete(f"batch_detail:{batch_id}")
     await redis_service.delete(f"batch_statistics:{batch_id}")
@@ -151,19 +174,28 @@ async def aggregate_products(
     session: AsyncSession = Depends(db_helper.session_getter),
 ) -> dict:
     repo = ProductRepository(session)
+    webhook_service = WebhookService(session)
 
-    updated_count = await repo.aggregate_products_batch(batch_id, payload.unique_codes)
+    result = await repo.aggregate_products_batch(batch_id, payload.unique_codes)
 
-    if updated_count == 0:
+    if result["aggregated"] == 0:
         raise HTTPException(
-            status_code=400, detail="No products were aggregated. Check unique_codes or batch_id."
+            status_code=400,
+            detail=f"No products were aggregated. Errors: {result['errors']}"
         )
+
+    await webhook_service.trigger_product_aggregated(
+        unique_codes=result["updated_codes"],
+        batch_id=batch_id,
+        aggregated_at=datetime.now(UTC)
+    )
+    await session.commit()
 
     await redis_service.delete("dashboard_stats")
     await redis_service.delete(f"batch_detail:batch_id_{batch_id}")
     await redis_service.delete(f"batch_statistics:batch_id_{batch_id}")
 
-    return {"message": f"Successfully aggregated {updated_count} products."}
+    return {"message": f"Successfully aggregated {result['aggregated']} products."}
 
 
 @router.post("/{batch_id}/aggregate-async", status_code=status.HTTP_202_ACCEPTED)
@@ -178,14 +210,14 @@ def aggregate_products_async(batch_id: int, products_list: AggregateProductsRequ
 
 
 @router.post("/{batch_id}/reports", status_code=status.HTTP_202_ACCEPTED)
-async def batch_generate_report(batch_id: int, payload: ReportRequestSchema):
+def batch_generate_report(batch_id: int, payload: ReportRequestSchema):
     task = generate_batch_report.delay(batch_id, payload.format, payload.email)
 
     return {"task_id": task.id, "status": "PENDING"}
 
 
 @router.post("/import", status_code=status.HTTP_202_ACCEPTED)
-async def import_batches(file: UploadFile = File(...)):
+def import_batches(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1]
 
     if ext not in ["csv", "xlsx"]:

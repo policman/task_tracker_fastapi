@@ -93,7 +93,7 @@ class BatchRepository:
             else:
                 batch.closed_at = None
 
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(batch)
 
         return batch

@@ -5,13 +5,14 @@ from datetime import UTC, datetime, timedelta
 
 from app.celery_app import celery_app
 from app.core.config import settings
-from app.core.database import db_helper
+from app.core.database import DatabaseHelper
 from app.domain.services.analytics_service import stats_report_data
 from app.domain.services.batch_service import batch_report_data
 from app.domain.services.product_service import products_report_data
 from app.storage.minio_service import storage_service
 from app.utils.excel_generator import generate_batch_excel_report
 from app.utils.pdf_generator import generate_batch_pdf_report
+from app.domain.services.webhook_service import WebhookService
 
 
 @celery_app.task(bind=True, max_retries=3, name="generate_batch_report")
@@ -22,8 +23,9 @@ def generate_batch_report(
     user_email: str = None,
 ):
     async def _logic():
+        db_local = DatabaseHelper(database_url=settings.database_url, echo=False)
         try:
-            async with db_helper.session_factory() as session:
+            async with db_local.session_factory() as session:
                 batch_data = await batch_report_data(session, batch_id)
                 products_data = await products_report_data(session, batch_id)
                 stats_data = await stats_report_data(batch_data, products_data)
@@ -48,10 +50,18 @@ def generate_batch_report(
                     object_name=object_name,
                     file_path=file_path,
                 )
-
             finally:
                 if os.path.exists(file_path):
                     os.remove(file_path)
+
+            async with db_local.session_factory() as session:
+                webhook_service = WebhookService(session)
+                await webhook_service.trigger_report_generated(
+                    batch_id=batch_id,
+                    report_type=report_format,
+                    file_url=file_url
+                )
+                await session.commit()
 
             return {
                 "success": True,
@@ -61,7 +71,7 @@ def generate_batch_report(
                 "expires_at": expires_at,
             }
         finally:
-            await db_helper.dispose()
+            await db_local.dispose()
 
     try:
         return asyncio.run(_logic())

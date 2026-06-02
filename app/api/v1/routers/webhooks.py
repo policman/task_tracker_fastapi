@@ -20,8 +20,14 @@ async def create_subscription(
 ):
     """Creates a new webhook subscription."""
     repo = WebhookRepository(session)
-    new_subscription = await repo.create_subscription(sub_in.model_dump())
+    data = sub_in.model_dump()
+
+    if 'url' in data and data['url']:
+        data['url'] = str(data['url'])
+
+    new_subscription = await repo.create_subscription(data)
     await session.commit()
+
     return new_subscription
 
 
