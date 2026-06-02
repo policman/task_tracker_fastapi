@@ -1,19 +1,19 @@
 import asyncio
-import hmac
 import hashlib
+import hmac
 import json
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy.orm import selectinload
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.celery_app import celery_app
 from app.core.database import db_helper
-from app.data.models.webhook_service import WebhookDelivery, WebhookSubscription
+from app.data.models.webhook_service import WebhookDelivery
 
 
-@celery_app.task(bind=True, name='send_webhook_delivery')
+@celery_app.task(bind=True, name="send_webhook_delivery")
 def send_webhook_delivery(self, delivery_id: int):
     retry_exc = None
     retry_countdown = 60
@@ -22,11 +22,13 @@ def send_webhook_delivery(self, delivery_id: int):
         nonlocal retry_exc, retry_countdown
 
         async with db_helper.session_factory() as session:
-            delivery = (await session.scalars((
-                select(WebhookDelivery)
-                .options(selectinload(WebhookDelivery.subscription))
-                .where(WebhookDelivery.id == delivery_id)
-            ))).first()
+            delivery = (
+                await session.scalars(
+                    select(WebhookDelivery)
+                    .options(selectinload(WebhookDelivery.subscription))
+                    .where(WebhookDelivery.id == delivery_id)
+                )
+            ).first()
 
             if not delivery or not delivery.subscription:
                 print(f"Delivery {delivery_id} not found.")
@@ -39,26 +41,21 @@ def send_webhook_delivery(self, delivery_id: int):
 
             delivery.attempts += 1
 
-            payload_bytes = json.dumps(delivery.payload, separators=(',', ':')).encode('utf-8')
+            payload_bytes = json.dumps(delivery.payload, separators=(",", ":")).encode("utf-8")
 
             signature = hmac.new(
-                key=sub.secret_key.encode('utf-8'),
-                msg=payload_bytes,
-                digestmod=hashlib.sha256
+                key=sub.secret_key.encode("utf-8"), msg=payload_bytes, digestmod=hashlib.sha256
             ).hexdigest()
 
             headers = {
                 "Content-Type": "application/json",
-                "X-Webhook-Signature": signature  # Тот самый заголовок для верификации
+                "X-Webhook-Signature": signature,  # Тот самый заголовок для верификации
             }
 
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
-                        url=sub.url,
-                        content=payload_bytes,
-                        headers=headers,
-                        timeout=sub.timeout
+                        url=sub.url, content=payload_bytes, headers=headers, timeout=sub.timeout
                     )
                     response.raise_for_status()
 

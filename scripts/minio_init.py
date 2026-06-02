@@ -1,10 +1,13 @@
-from logging import basicConfig, getLogger, INFO
+from logging import INFO, basicConfig, getLogger
+
 from minio import Minio
 from minio.error import S3Error
+
 from app.core.config import settings
 
 basicConfig(level=INFO)
 logger = getLogger("init_minio")
+
 
 def init_buckets():
     logger.info("Initializing Minio and create buckets")
@@ -33,6 +36,7 @@ def init_buckets():
         logger.error(f"Error creating Minio: {e}")
     except Exception as e:
         logger.error(f"Unrealized error: {e}")
+
 
 if __name__ == "__main__":
     init_buckets()

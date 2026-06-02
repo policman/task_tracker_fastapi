@@ -1,12 +1,14 @@
 from datetime import datetime
 
-from .base import Base
-from sqlalchemy import ForeignKey, Index, text, DateTime
+from sqlalchemy import DateTime, ForeignKey, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from .types import int_pk, created_at_type
+
+from .base import Base
+from .types import created_at_type, int_pk
+
 
 class Product(Base):
-    __tablename__ = 'products'
+    __tablename__ = "products"
 
     id: Mapped[int_pk]
     unique_code: Mapped[str] = mapped_column(unique=True, index=True)
@@ -17,6 +19,4 @@ class Product(Base):
 
     batch: Mapped["Batch"] = relationship(back_populates="products")
 
-    __table_args__ = (
-        Index('idx_product_batch_aggregated', 'batch_id', 'is_aggregated'),
-    )
+    __table_args__ = (Index("idx_product_batch_aggregated", "batch_id", "is_aggregated"),)

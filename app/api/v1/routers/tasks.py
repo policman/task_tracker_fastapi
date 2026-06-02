@@ -1,5 +1,5 @@
-from fastapi import APIRouter
 from celery.result import AsyncResult
+from fastapi import APIRouter
 
 from app.celery_app import celery_app
 

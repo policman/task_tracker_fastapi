@@ -1,6 +1,7 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.v1.schemas.task import BatchGenerateData
 from app.data.repositories.batch_repository import BatchRepository
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def batch_report_data(session: AsyncSession, batch_id: int) -> BatchGenerateData:
@@ -8,7 +9,7 @@ async def batch_report_data(session: AsyncSession, batch_id: int) -> BatchGenera
     batch = await repo.get_batch(batch_id)
 
     if not batch:
-        raise ValueError(f'Batch {batch_id} not found')
+        raise ValueError(f"Batch {batch_id} not found")
 
     return BatchGenerateData(
         batch_number=batch.batch_number,

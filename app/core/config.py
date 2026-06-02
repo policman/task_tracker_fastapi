@@ -2,12 +2,15 @@ from pydantic import BaseModel
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
 
+
 class ApiPrefix(BaseModel):
     prefix: str = "/api/v1"
+
 
 class MinioSettings(BaseModel):
     endpoint: str
@@ -18,9 +21,11 @@ class MinioSettings(BaseModel):
     bucket_imports: str = "imports"
     bucket_exports: str = "exports"
 
+
 class CelerySettings(BaseModel):
     broker_url: str
     result_backend: str
+
 
 class Settings(BaseSettings):
     run: RunConfig = RunConfig()
@@ -69,5 +74,6 @@ class Settings(BaseSettings):
         )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
 
 settings = Settings()

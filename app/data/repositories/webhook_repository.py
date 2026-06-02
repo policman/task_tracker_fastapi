@@ -1,6 +1,8 @@
-from sqlalchemy import select, update, delete
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.data.models.webhook_service import WebhookSubscription, WebhookDelivery
+
+from app.data.models.webhook_service import WebhookDelivery, WebhookSubscription
+
 
 class WebhookRepository:
     def __init__(self, session: AsyncSession):
@@ -28,11 +30,12 @@ class WebhookRepository:
 
     async def delete_subscription(self, webhook_id: int) -> None:
         await self.session.execute(
-            delete(WebhookSubscription)
-            .where(WebhookSubscription.id == webhook_id)
+            delete(WebhookSubscription).where(WebhookSubscription.id == webhook_id)
         )
 
-    async def get_deliveries(self, webhook_id: int, limit: int = 20, offset: int = 0) -> list[WebhookDelivery]:
+    async def get_deliveries(
+        self, webhook_id: int, limit: int = 20, offset: int = 0
+    ) -> list[WebhookDelivery]:
         deliveries = await self.session.scalars(
             select(WebhookDelivery)
             .where(WebhookDelivery.subscription_id == webhook_id)
@@ -47,9 +50,9 @@ class WebhookRepository:
             select(WebhookDelivery)
             .join(WebhookSubscription, WebhookSubscription.id == WebhookDelivery.subscription_id)
             .where(
-                WebhookDelivery.status == 'failed',
+                WebhookDelivery.status == "failed",
                 WebhookDelivery.attempts < WebhookSubscription.retry_count,
-                WebhookSubscription.is_active.is_(True)
+                WebhookSubscription.is_active.is_(True),
             )
         )
         return list(dels_for_retry.all())

@@ -1,24 +1,25 @@
 import asyncio
 import os
 import uuid
-from datetime import datetime, UTC, timedelta
+from datetime import UTC, datetime, timedelta
 
-from app.core.config import settings
 from app.celery_app import celery_app
+from app.core.config import settings
+from app.core.database import db_helper
+from app.domain.services.analytics_service import stats_report_data
 from app.domain.services.batch_service import batch_report_data
 from app.domain.services.product_service import products_report_data
-from app.domain.services.analytics_service import stats_report_data
-from app.core.database import db_helper
-from app.utils.excel_generator import generate_batch_excel_report
 from app.storage.minio_service import storage_service
+from app.utils.excel_generator import generate_batch_excel_report
 from app.utils.pdf_generator import generate_batch_pdf_report
 
-@celery_app.task(bind=True, max_retries=3, name='generate_batch_report')
+
+@celery_app.task(bind=True, max_retries=3, name="generate_batch_report")
 def generate_batch_report(
-        self,
-        batch_id: int,
-        report_format: str = "excel",
-        user_email: str = None,
+    self,
+    batch_id: int,
+    report_format: str = "excel",
+    user_email: str = None,
 ):
     async def _logic():
         try:
@@ -36,7 +37,6 @@ def generate_batch_report(
                     ext = "pdf"
                 case _:
                     raise ValueError(f"Unsupported format: {report_format}")
-
 
             object_name = f"batch_{batch_id}_report_{uuid.uuid4().hex}.{ext}"
             file_size = os.path.getsize(file_path)

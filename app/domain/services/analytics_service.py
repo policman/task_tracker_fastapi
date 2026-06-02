@@ -1,7 +1,9 @@
 from app.api.v1.schemas.task import BatchGenerateData, ProductsReportData, StatsReportData
 
 
-async def stats_report_data(batch: BatchGenerateData, products: ProductsReportData) -> StatsReportData:
+async def stats_report_data(
+    batch: BatchGenerateData, products: ProductsReportData
+) -> StatsReportData:
     total_products = len(products.products)
 
     aggregated_count = sum(1 for p in products.products if p.is_aggregated)

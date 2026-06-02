@@ -1,22 +1,22 @@
 import asyncio
 import os
-from fastapi import HTTPException
 
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.api.v1.schemas.batch import BatchCreate
 from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import db_helper
+from app.data.repositories.batch_repository import BatchRepository
 from app.storage.minio_service import storage_service
 from app.utils.csv_parser import parse_csv_generator
 from app.utils.excel_parser import parse_excel_generator
-from app.data.repositories.batch_repository import BatchRepository
 
 
 @celery_app.task(bind=True, max_retries=1)
 def import_batches_from_file(self, object_name: str, user_id: int | None = None):
-    ext = object_name.split('.')[-1]
+    ext = object_name.split(".")[-1]
     temp_file_path = f"/tmp/{object_name}"
 
     async def _logic():
@@ -32,7 +32,9 @@ def import_batches_from_file(self, object_name: str, user_id: int | None = None)
             elif ext == "csv":
                 row_generator = parse_csv_generator(temp_file_path)
             else:
-                raise HTTPException(status_code=400, detail="Import Error (Supported files: xlsx or csv)")
+                raise HTTPException(
+                    status_code=400, detail="Import Error (Supported files: xlsx or csv)"
+                )
 
             created = 0
             skipped = 0
@@ -50,12 +52,13 @@ def import_batches_from_file(self, object_name: str, user_id: int | None = None)
                             batch_schema.batch_date,
                         ):
                             skipped += 1
-                            errors.append({
-                                "row": row_idx,
-                                "error":
-                                    f"Batch №{batch_schema.batch_number} "
-                                    f"by {batch_schema.batch_date}"
-                            })
+                            errors.append(
+                                {
+                                    "row": row_idx,
+                                    "error": f"Batch №{batch_schema.batch_number} "
+                                    f"by {batch_schema.batch_date}",
+                                }
+                            )
                             continue
 
                         await batch_repo.create_batch(batch_schema.model_dump())
@@ -67,13 +70,12 @@ def import_batches_from_file(self, object_name: str, user_id: int | None = None)
                     except ValidationError as e:
                         skipped += 1
                         error_detail = e.errors()[0]
-                        field_name = error_detail["loc"][0] if error_detail.get("loc") else "Unknown"
+                        field_name = (
+                            error_detail["loc"][0] if error_detail.get("loc") else "Unknown"
+                        )
                         error_msg = error_detail["msg"]
 
-                        errors.append({
-                            "row": row_idx,
-                            "error": f"Field {field_name}: {error_msg}"
-                        })
+                        errors.append({"row": row_idx, "error": f"Field {field_name}: {error_msg}"})
 
                     except Exception as e:
                         await session.rollback()
@@ -91,7 +93,7 @@ def import_batches_from_file(self, object_name: str, user_id: int | None = None)
                 "total_rows": created + skipped,
                 "created": created,
                 "skipped": skipped,
-                "errors": errors
+                "errors": errors,
             }
         finally:
             if os.path.exists(temp_file_path):

@@ -1,12 +1,15 @@
-from .base import Base
-from sqlalchemy import text, ForeignKey, ARRAY, JSON, String
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from .types import int_pk, created_at_type, updated_at_type
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import ARRAY, JSON, ForeignKey, String, text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base
+from .types import created_at_type, int_pk, updated_at_type
+
+
 class WebhookSubscription(Base):
-    __tablename__ = 'webhook_subscriptions'
+    __tablename__ = "webhook_subscriptions"
 
     id: Mapped[int_pk]
     url: Mapped[str]
@@ -26,10 +29,10 @@ class WebhookSubscription(Base):
 
 
 class WebhookDelivery(Base):
-    __tablename__ = 'webhook_deliveries'
+    __tablename__ = "webhook_deliveries"
 
     id: Mapped[int_pk]
-    subscription_id: Mapped[int] = mapped_column(ForeignKey('webhook_subscriptions.id'))
+    subscription_id: Mapped[int] = mapped_column(ForeignKey("webhook_subscriptions.id"))
     event_type: Mapped[str]
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     status: Mapped[str]

@@ -1,9 +1,11 @@
 import os
-from datetime import timedelta, datetime, UTC
+from datetime import UTC, datetime, timedelta
 from typing import BinaryIO
 
 from minio import Minio
+
 from app.core.config import settings
+
 
 class MinIOService:
     def __init__(self):
@@ -11,17 +13,17 @@ class MinIOService:
             endpoint=settings.minio.endpoint,
             access_key=settings.minio.access_key,
             secret_key=settings.minio.secret_key,
-            secure=settings.minio.secure
+            secure=settings.minio.secure,
         )
 
     def list_objects(self, bucket: str, prefix: str = "", recursive: bool = True):
         return self.client.list_objects(bucket_name=bucket, prefix=prefix, recursive=recursive)
 
     def upload_file(
-            self,
-            bucket: str,
-            object_name: str,
-            file_path: str,
+        self,
+        bucket: str,
+        object_name: str,
+        file_path: str,
     ) -> str:
         self.client.fput_object(
             bucket_name=bucket,
@@ -37,7 +39,7 @@ class MinIOService:
         object_name: str,
         file_data: BinaryIO,
         length: int,
-        content_type: str = "application/octet-stream"
+        content_type: str = "application/octet-stream",
     ):
         self.client.put_object(
             bucket,
@@ -50,17 +52,11 @@ class MinIOService:
 
     def get_presigned_url(self, bucket: str, object_name: str, expires_days: int = 7) -> str:
         return self.client.presigned_get_object(
-            bucket_name=bucket,
-            object_name=object_name,
-            expires=timedelta(days=expires_days)
+            bucket_name=bucket, object_name=object_name, expires=timedelta(days=expires_days)
         )
 
     def download_file(self, bucket: str, object_name: str, file_path: str):
-        self.client.fget_object(
-            bucket_name=bucket,
-            object_name=object_name,
-            file_path=file_path
-        )
+        self.client.fget_object(bucket_name=bucket, object_name=object_name, file_path=file_path)
 
     def delete_object(self, bucket: str, object_name: str):
         self.client.remove_object(bucket_name=bucket, object_name=object_name)
@@ -82,14 +78,14 @@ class MinIOService:
         ext = os.path.splitext(file_path)[1].lower()
 
         content_types = {
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.xls': 'application/vnd.ms-excel',
-            '.csv': 'text/csv',
-            '.pdf': 'application/pdf',
-            '.json': 'application/json',
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xls": "application/vnd.ms-excel",
+            ".csv": "text/csv",
+            ".pdf": "application/pdf",
+            ".json": "application/json",
         }
 
-        return content_types.get(ext, 'application/octet-stream')
+        return content_types.get(ext, "application/octet-stream")
 
 
 storage_service = MinIOService()

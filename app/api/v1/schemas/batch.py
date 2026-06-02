@@ -1,6 +1,9 @@
-from datetime import datetime, date
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
 from .product import ProductResponse
+
 
 class BatchCreate(BaseModel):
     is_closed: bool = Field(alias="СтатусЗакрытия", default=False)
@@ -18,8 +21,10 @@ class BatchCreate(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+
 class BatchUpdate(BaseModel):
     is_closed: bool | None = None
+
 
 class BatchResponse(BaseModel):
     id: int
@@ -29,6 +34,7 @@ class BatchResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class BatchWithProductsResponse(BaseModel):
     id: int
     batch_number: int
@@ -36,15 +42,14 @@ class BatchWithProductsResponse(BaseModel):
     is_closed: bool
     products: list[ProductResponse]
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        from_attributes=True
-    )
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
 
 class BatchExportFilter(BaseModel):
     is_closed: bool | None = None
     date_from: date | None = None
     date_to: date | None = None
+
 
 class BatchFilter(BaseModel):
     is_closed: bool | None = None
@@ -56,18 +61,20 @@ class BatchFilter(BaseModel):
     offset: int = Field(default=0)
     limit: int = Field(default=20, ge=1, le=100)
 
+
 class ReportRequestSchema(BaseModel):
     format: str = "excel"
     email: EmailStr | None = None
+
 
 class BatchExportFilters(BaseModel):
     is_closed: bool | None = None
     date_from: date | None = None
     date_to: date | None = None
 
+
 class BatchStatistics(BaseModel):
     total_products: int
     aggregated: int
     remaining: int
     rate: float
-

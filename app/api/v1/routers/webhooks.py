@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import db_helper
+
 from app.api.v1.schemas.webhook import (
+    WebhookDeliveryResponse,
     WebhookSubscriptionCreate,
-    WebhookSubscriptionUpdate,
     WebhookSubscriptionResponse,
-    WebhookDeliveryResponse
+    WebhookSubscriptionUpdate,
 )
+from app.core.database import db_helper
 from app.data.repositories.webhook_repository import WebhookRepository
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
+
 
 @router.post("/", response_model=WebhookSubscriptionResponse, status_code=status.HTTP_201_CREATED)
 async def create_subscription(
@@ -22,10 +24,12 @@ async def create_subscription(
     await session.commit()
     return new_subscription
 
+
 @router.get("/", response_model=list[WebhookSubscriptionResponse])
 async def get_subscriptions(session: AsyncSession = Depends(db_helper.session_getter)):
     repo = WebhookRepository(session)
     return await repo.get_subscriptions()
+
 
 @router.patch("/{webhook_id}", response_model=WebhookSubscriptionResponse)
 async def update_subscription(
@@ -48,6 +52,7 @@ async def update_subscription(
     await session.commit()
     return updated_sub
 
+
 @router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_subscription(
     webhook_id: int,
@@ -57,6 +62,7 @@ async def delete_subscription(
     repo = WebhookRepository(session)
     await repo.delete_subscription(webhook_id)
     await session.commit()
+
 
 @router.get("/{webhook_id}/deliveries", response_model=list[WebhookDeliveryResponse])
 async def get_webhook_deliveries(

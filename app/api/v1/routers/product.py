@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.schemas.product import ProductCreate, ProductResponse
 from app.core.database import db_helper
-from app.api.v1.schemas.product import ProductResponse, ProductCreate
 from app.data.repositories.product_repository import ProductRepository
 
 router = APIRouter(prefix="/products", tags=["products"])
 
+
 @router.post("", response_model=list[ProductResponse], status_code=201)
 async def create_products(
-    products_in: list[ProductCreate],
-    session: AsyncSession = Depends(db_helper.session_getter)
+    products_in: list[ProductCreate], session: AsyncSession = Depends(db_helper.session_getter)
 ):
     repo = ProductRepository(session)
 
@@ -18,4 +19,3 @@ async def create_products(
     created_products = await repo.create_products(products_dict_list)
 
     return created_products
-

@@ -1,13 +1,16 @@
-from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
 
 
 class ProductCreate(BaseModel):
     unique_code: str
     batch_id: int
 
+
 class AggregateProductsRequest(BaseModel):
     unique_codes: list[str]
+
 
 class ProductResponse(BaseModel):
     id: int

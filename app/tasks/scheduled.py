@@ -1,16 +1,14 @@
 import asyncio
-from functools import cache
-
-from mypy.util import json_dumps
 
 from app.celery_app import celery_app
+from app.core.cache import RedisService
+from app.core.config import settings
 from app.core.database import db_helper
 from app.data.repositories.batch_repository import BatchRepository
-from app.core.config import settings
-from app.storage.minio_service import storage_service
 from app.data.repositories.webhook_repository import WebhookRepository
+from app.storage.minio_service import storage_service
 from app.tasks.webhooks import send_webhook_delivery
-from app.core.cache import RedisService
+
 
 @celery_app.task
 def auto_close_expired_batches():
@@ -27,23 +25,23 @@ def auto_close_expired_batches():
 
     return asyncio.run(_logic())
 
+
 @celery_app.task
 def cleanup_old_files():
     deleted_reports = storage_service.cleanup_old_files(
-        bucket=settings.minio.bucket_reports,
-        days_old=30
+        bucket=settings.minio.bucket_reports, days_old=30
     )
     deleted_exports = storage_service.cleanup_old_files(
-        bucket=settings.minio.bucket_exports,
-        days_old=30
+        bucket=settings.minio.bucket_exports, days_old=30
     )
 
     return {
         "success": True,
         "deleted_reports": deleted_reports,
         "deleted_exports": deleted_exports,
-        "total_deleted": deleted_reports + deleted_exports
+        "total_deleted": deleted_reports + deleted_exports,
     }
+
 
 @celery_app.task
 def update_cached_statistics():
@@ -63,6 +61,7 @@ def update_cached_statistics():
             await redis.close()
 
     return asyncio.run(_logic())
+
 
 @celery_app.task
 def retry_failed_webhooks():

@@ -1,9 +1,11 @@
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from .base import Base
-from .types import int_pk, created_at_type, updated_at_type
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from .types import created_at_type, int_pk, updated_at_type
+
 
 class WorkCenter(Base):
-    __tablename__ = 'work_centers'
+    __tablename__ = "work_centers"
 
     id: Mapped[int_pk]
     identifier: Mapped[str] = mapped_column(unique=True, index=True)

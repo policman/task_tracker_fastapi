@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
 from datetime import datetime
+
+from pydantic import BaseModel, Field
+
 
 class DashboardStatisticsResponse(BaseModel):
     total_batches: int = Field(default=0)

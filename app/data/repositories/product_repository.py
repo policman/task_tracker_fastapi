@@ -1,10 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import update, select
-from app.data.models import Product
+from datetime import UTC, datetime
 from typing import Any
-from datetime import datetime, UTC
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import redis_service
+from app.data.models import Product
 
 
 class ProductRepository:
@@ -22,20 +23,17 @@ class ProductRepository:
 
         return new_products
 
-
     async def aggregate_products_batch(
-            self,
-            batch_id: int,
-            unique_codes: list[str]
+        self, batch_id: int, unique_codes: list[str]
     ) -> dict[str, Any]:
         found_products = (
             await self.session.scalars(
-                select(Product)
-                .where(
+                select(Product).where(
                     Product.unique_code.in_(unique_codes),
                     Product.batch_id == batch_id,
                 )
-        )).all()
+            )
+        ).all()
 
         found_codes = {p.unique_code for p in found_products}
         already_aggregated_codes = [p.unique_code for p in found_products if p.is_aggregated]
@@ -53,10 +51,7 @@ class ProductRepository:
         if codes_to_update:
             await self.session.execute(
                 update(Product)
-                .where(
-                    Product.batch_id == batch_id,
-                    Product.unique_code.in_(codes_to_update)
-                )
+                .where(Product.batch_id == batch_id, Product.unique_code.in_(codes_to_update))
                 .values(
                     is_aggregated=True,
                     aggregated_at=datetime.now(UTC),
@@ -78,7 +73,6 @@ class ProductRepository:
         }
 
     async def get_batch_with_products(self, batch_id: int) -> list[Product]:
-        return list((await self.session.scalars(
-            select(Product)
-            .where(Product.batch_id == batch_id)
-        )).all())
+        return list(
+            (await self.session.scalars(select(Product).where(Product.batch_id == batch_id))).all()
+        )

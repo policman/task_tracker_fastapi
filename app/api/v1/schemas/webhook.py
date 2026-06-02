@@ -1,6 +1,7 @@
-from pydantic import BaseModel, HttpUrl, Field, ConfigDict
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 EventType = Literal[
     "batch_created",
@@ -8,8 +9,9 @@ EventType = Literal[
     "batch_closed",
     "product_aggregated",
     "report_generated",
-    "import_completed"
+    "import_completed",
 ]
+
 
 class WebhookSubscriptionCreate(BaseModel):
     url: HttpUrl
@@ -18,9 +20,11 @@ class WebhookSubscriptionCreate(BaseModel):
     retry_count: int = Field(default=3, ge=0, le=5)
     timeout: int = Field(default=10, ge=1, le=30)
 
+
 class WebhookSubscriptionUpdate(BaseModel):
     is_active: bool | None = None
     events: list[EventType] | None = None
+
 
 class WebhookSubscriptionResponse(BaseModel):
     id: int
@@ -30,6 +34,7 @@ class WebhookSubscriptionResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class WebhookDeliveryResponse(BaseModel):
     id: int

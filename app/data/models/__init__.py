@@ -1,8 +1,8 @@
 from .base import Base
-from .work_center import WorkCenter
 from .batch import Batch
 from .product import Product
 from .webhook_service import WebhookDelivery, WebhookSubscription
+from .work_center import WorkCenter
 
 __all__ = (
     "Base",

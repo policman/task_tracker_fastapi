@@ -1,10 +1,13 @@
+import functools
 import json
+from collections.abc import Callable
+from typing import Any
+
+from fastapi.encoders import jsonable_encoder
 from redis.asyncio import Redis
+
 from app.core.config import settings
 
-import functools
-from typing import Callable, Any
-from fastapi.encoders import jsonable_encoder
 
 class RedisService:
     def __init__(self):
@@ -12,7 +15,8 @@ class RedisService:
 
     async def set_cache(self, key: str, data: dict | list, expire: int = 300):
         await self.redis.set(key, json.dumps(data), ex=expire)
-#
+
+    #
     async def get_cache(self, key: str) -> dict | list | None:
         data = await self.redis.get(key)
         if data:
@@ -33,6 +37,7 @@ class RedisService:
 
     async def close(self):
         await self.redis.aclose()
+
 
 redis_service = RedisService()
 

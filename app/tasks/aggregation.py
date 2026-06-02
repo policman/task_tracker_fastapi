@@ -1,22 +1,20 @@
 import asyncio
 
 from app.celery_app import celery_app
-from app.data.repositories.product_repository import ProductRepository
 from app.core.database import db_helper
+from app.data.repositories.product_repository import ProductRepository
+
 
 @celery_app.task(bind=True, max_retries=3)
 def aggregate_products_batch(
-    self,
-    batch_id: int,
-    unique_codes: list[str],
-    user_id: int | None = None
+    self, batch_id: int, unique_codes: list[str], user_id: int | None = None
 ):
     self.update_state(
-        state='PROGRESS',
+        state="PROGRESS",
         meta={
-            'current': 0,
-            'total': len(unique_codes),
-            'progress': 0,
+            "current": 0,
+            "total": len(unique_codes),
+            "progress": 0,
         },
     )
 

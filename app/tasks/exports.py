@@ -1,12 +1,13 @@
 import asyncio
 import os
+
 from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.database import db_helper
 from app.data.repositories.batch_repository import BatchRepository
+from app.storage.minio_service import storage_service
 from app.utils.csv_generator import generate_batches_csv
 from app.utils.excel_generator import generate_batches_excel
-from app.storage.minio_service import storage_service
 
 
 @celery_app.task(bind=True, max_retries=3)

@@ -1,7 +1,7 @@
-from app.api.v1.schemas.task import ProductReportData
-from app.api.v1.schemas.task import ProductsReportData
-from app.data.repositories.product_repository import ProductRepository
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.schemas.task import ProductReportData, ProductsReportData
+from app.data.repositories.product_repository import ProductRepository
 
 
 async def products_report_data(session: AsyncSession, batch_id: int) -> ProductsReportData:

@@ -1,5 +1,6 @@
-from pydantic import Field, ConfigDict, BaseModel
 from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BatchGenerateData(BaseModel):
@@ -24,8 +25,10 @@ class ProductReportData(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class ProductsReportData(BaseModel):
     products: list[ProductReportData]
+
 
 class StatsReportData(BaseModel):
     total_products: int
