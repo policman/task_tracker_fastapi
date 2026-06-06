@@ -12,7 +12,7 @@ from app.api.v1.schemas.batch import (
     BatchStatistics,
     BatchUpdate,
     BatchWithProductsResponse,
-    ReportRequestSchema,
+    ReportRequestSchema, ExtendedBatchStatisticsResponse,
 )
 from app.api.v1.schemas.product import AggregateProductsRequest
 from app.core.cache import cached, redis_service
@@ -103,7 +103,7 @@ async def get_batches_list(
     return filtered_batches
 
 
-@router.get("/{batch_id}/statistics", response_model=BatchStatistics)
+@router.get("/{batch_id}/statistics", response_model=ExtendedBatchStatisticsResponse)
 @cached(ttl=300, key_prefix="batch_statistics")
 async def get_batch_statistics(
     batch_id: int, session: AsyncSession = Depends(db_helper.session_getter)
@@ -111,16 +111,10 @@ async def get_batch_statistics(
     repo = BatchRepository(session)
     batch_statistics = await repo.get_batch_statistics(batch_id)
 
-    total = batch_statistics.get("total")
-    aggregated = batch_statistics.get("aggregated")
-    rate = round((aggregated / total) * 100, 2) if total != 0 else 0
+    if not batch_statistics:
+        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
 
-    return {
-        "total_products": total,
-        "aggregated": aggregated,
-        "remaining": total - aggregated,
-        "rate": rate,
-    }
+    return batch_statistics
 
 
 @router.patch("/{batch_id}", response_model=BatchResponse)

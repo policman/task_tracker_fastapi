@@ -28,22 +28,18 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "auto-close-expired-batches": {
         "task": "app.tasks.scheduled.auto_close_expired_batches",
-        # "schedule": crontab(hour=1, minute=0),
-        "schedule": crontab(hour=0, minute=1),
+        "schedule": crontab(hour=1, minute=0),
     },
     "cleanup-old-files": {
         "task": "app.tasks.scheduled.cleanup_old_files",
-        # "schedule": crontab(hour=2, minute=0),
-        "schedule": crontab(hour=0, minute=1),
+        "schedule": crontab(hour=2, minute=0),
     },
     "update-statistics": {
         "task": "app.tasks.scheduled.update_cached_statistics",
-        # "schedule": crontab(minute="*/5"),
-        "schedule": crontab(minute="*/1"),
+        "schedule": crontab(minute="*/5"),
     },
     "retry-failed-webhooks": {
         "task": "app.tasks.scheduled.retry_failed_webhooks",
-        # "schedule": crontab(minute="*/15"),
-        "schedule": crontab(minute="*/1"),
+        "schedule": crontab(minute="*/15"),
     },
 }
