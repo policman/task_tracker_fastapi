@@ -3,11 +3,11 @@ import asyncio
 from app.celery_app import celery_app
 from app.core.cache import RedisService
 from app.core.config import settings
-from app.data.repositories.batch_repository import BatchRepository
-from app.data.repositories.webhook_repository import WebhookRepository
+from app.core.database import DatabaseHelper
+from app.domain.services.batch_service import BatchService
+from app.domain.services.webhook_service import WebhookService
 from app.storage.minio_service import storage_service
 from app.tasks.webhooks import send_webhook_delivery
-from app.core.database import DatabaseHelper
 
 
 @celery_app.task
@@ -16,10 +16,8 @@ def auto_close_expired_batches():
         local_db = DatabaseHelper(database_url=settings.database_url, echo=False)
         try:
             async with local_db.session_factory() as session:
-                batch_repo = BatchRepository(session)
-                closed_count = await batch_repo.auto_close_expired_batches()
-
-                await session.commit()
+                batch_service = BatchService(session)
+                closed_count = await batch_service.auto_close_expired_batches()
                 return {"success": True, "closed_count": closed_count}
         finally:
             await local_db.dispose()
@@ -51,8 +49,8 @@ def update_cached_statistics():
         redis = RedisService()
         try:
             async with local_db.session_factory() as session:
-                batch_repo = BatchRepository(session)
-                stats_data = await batch_repo.update_cached_statistics()
+                service = BatchService(session)
+                stats_data = await service.get_dashboard_statistics()
 
                 await redis.set_cache("dashboard_stats", stats_data, 300)
 
@@ -70,8 +68,8 @@ def retry_failed_webhooks():
         local_db = DatabaseHelper(database_url=settings.database_url, echo=False)
         try:
             async with local_db.session_factory() as session:
-                webhook_repo = WebhookRepository(session)
-                deliveries_list = await webhook_repo.get_deliveries_for_retry()
+                webhook_service = WebhookService(session)
+                deliveries_list = await webhook_service.get_deliveries_for_retry()
 
                 for delivery in deliveries_list:
                     send_webhook_delivery.delay(delivery.id)

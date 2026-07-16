@@ -1,5 +1,5 @@
 [project]
-name = "task-tracker-fastapi"
+name = "production-control"
 version = "0.1.0"
 description = ""
 authors = [
@@ -37,11 +37,13 @@ dev = [
     "ruff (>=0.15.7,<0.16.0)",
     "mypy (>=1.19.1,<2.0.0)",
     "pytest (>=9.0.2,<10.0.0)",
-    "pytest-asyncio (>=1.3.0,<2.0.0)"
+    "pytest-asyncio (>=1.3.0,<2.0.0)",
+    "black (>=26.5.1,<27.0.0)",
+    "isort (>=8.0.1,<9.0.0)",
+    "flake8 (>=7.3.0,<8.0.0)"
 ]
 
 [tool.ruff]
-# Исключаем папки, которые линтеру читать не нужно
 exclude = [
     ".git",
     ".venv",
@@ -52,17 +54,12 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-# Включаем нужные правила:
-# E, W - стандартные ошибки PEP8
-# F - ошибки логики (неиспользуемые переменные и т.д.)
-# I - isort (сортировка импортов - то, что ты просил)
-# B - bugbear (популярные баги)
-# UP - pyupgrade (современный синтаксис Python)
 select = ["E", "W", "F", "I", "B", "UP"]
 
-# Игнорируем некоторые правила, если они слишком душные
 ignore = []
 
-# Настройки специально для isort (сортировки импортов)
 [tool.ruff.lint.isort]
-known-first-party = ["app"] # Указываем, что папка app - это наш локальный код
+known-first-party = ["app"]
+
+[tool.poetry]
+package-mode = false

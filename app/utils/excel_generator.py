@@ -4,7 +4,11 @@ from pathlib import Path
 
 import openpyxl
 
-from app.api.v1.schemas.task import BatchGenerateData, ProductsReportData, StatsReportData
+from app.api.v1.schemas.task import (
+    BatchGenerateData,
+    ProductsReportData,
+    StatsReportData,
+)
 
 
 def generate_batch_excel_report(
@@ -42,7 +46,11 @@ def generate_batch_excel_report(
                 p.id,
                 p.unique_code,
                 "Да" if p.is_aggregated else "Нет",
-                p.aggregated_at.strftime("%d-%m-%Y %H:%M:%S") if p.aggregated_at else "-",
+                (
+                    p.aggregated_at.strftime("%d-%m-%Y %H:%M:%S")
+                    if p.aggregated_at
+                    else "-"
+                ),
             ]
         )
 
@@ -53,10 +61,13 @@ def generate_batch_excel_report(
     ws_stats.append(["Агрегировано:", stats.aggregated_products])
     ws_stats.append(["Осталось:", stats.unaggregated_products])
     ws_stats.append(["Процент выполнения:", f"{stats.percent_aggregated}%"])
-    ws_stats.append(["Средняя скорость:", f"{stats.avg_speed} ед/час" if stats.avg_speed else "-"])
+    ws_stats.append(
+        ["Средняя скорость:", f"{stats.avg_speed} ед/час" if stats.avg_speed else "-"]
+    )
 
     file_path = (
-        Path(tempfile.gettempdir()) / f"batch_{batch.batch_number}_report_{uuid.uuid4().hex}.xlsx"
+        Path(tempfile.gettempdir())
+        / f"batch_{batch.batch_number}_report_{uuid.uuid4().hex}.xlsx"
     )
     wb.save(file_path)
 

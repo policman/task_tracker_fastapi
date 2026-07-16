@@ -18,59 +18,43 @@ class ProductRepository:
         self.session.add_all(new_products)
         await self.session.flush()
 
-        for product in new_products:
-            await self.session.refresh(product)
-
         return new_products
+
+    async def get_products_to_aggregate(
+        self, batch_id: int, unique_codes: list[str]
+    ) -> list[Product]:
+        return list(
+            (
+                await self.session.scalars(
+                    select(Product).where(
+                        Product.unique_code.in_(unique_codes),
+                        Product.batch_id == batch_id,
+                    )
+                )
+            ).all()
+        )
 
     async def aggregate_products_batch(
         self, batch_id: int, unique_codes: list[str]
-    ) -> dict[str, Any]:
-        found_products = (
-            await self.session.scalars(
-                select(Product).where(
-                    Product.unique_code.in_(unique_codes),
-                    Product.batch_id == batch_id,
-                )
+    ) -> int:
+        result = await self.session.execute(
+            update(Product)
+            .where(Product.batch_id == batch_id, Product.unique_code.in_(unique_codes))
+            .values(
+                is_aggregated=True,
+                aggregated_at=datetime.now(UTC),
             )
-        ).all()
+        )
 
-        found_codes = {p.unique_code for p in found_products}
-        already_aggregated_codes = [p.unique_code for p in found_products if p.is_aggregated]
-        codes_to_update = [p.unique_code for p in found_products if not p.is_aggregated]
-        errors = []
+        await self.session.flush()
 
-        missing_codes = set(unique_codes) - found_codes
-        for code in missing_codes:
-            errors.append({"code": code, "reason": "not found in this batch"})
-
-        for code in already_aggregated_codes:
-            errors.append({"code": code, "reason": "already aggregated"})
-
-        aggregated_count = 0
-        if codes_to_update:
-            await self.session.execute(
-                update(Product)
-                .where(Product.batch_id == batch_id, Product.unique_code.in_(codes_to_update))
-                .values(
-                    is_aggregated=True,
-                    aggregated_at=datetime.now(UTC),
-                )
-            )
-            aggregated_count = len(codes_to_update)
-            await self.session.flush()
-
-
-        return {
-            "success": len(errors) == 0,
-            "total": len(unique_codes),
-            "aggregated": aggregated_count,
-            "failed": len(errors),
-            "errors": errors,
-            "updated_codes": codes_to_update,
-        }
+        return result.rowcount
 
     async def get_batch_with_products(self, batch_id: int) -> list[Product]:
         return list(
-            (await self.session.scalars(select(Product).where(Product.batch_id == batch_id))).all()
+            (
+                await self.session.scalars(
+                    select(Product).where(Product.batch_id == batch_id)
+                )
+            ).all()
         )

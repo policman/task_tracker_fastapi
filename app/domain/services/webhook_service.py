@@ -1,8 +1,13 @@
+import hashlib
+import hmac
+import json
 from datetime import UTC, datetime
 
+import httpx
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.v1.schemas.webhook_events import (
     BaseWebhookEvent,
@@ -14,34 +19,69 @@ from app.api.v1.schemas.webhook_events import (
     ProductAggregatedData,
     ReportGeneratedData,
 )
+from app.core.exceptions import BusinessLogicException, NotFoundException
 from app.data.models.webhook_service import WebhookDelivery, WebhookSubscription
-from app.tasks.webhooks import send_webhook_delivery
+from app.data.repositories.webhook_repository import WebhookRepository
 
 
 class WebhookService:
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.webhook_repo = WebhookRepository(session)
+
+    async def create_subscription(self, data: dict) -> WebhookSubscription:
+        if "url" in data and data["url"]:
+            data["url"] = str(data["url"])
+
+        new_subscription = await self.webhook_repo.create(data)
+        await self.session.commit()
+
+        return new_subscription
+
+    async def get_subscriptions(self) -> list[WebhookSubscription]:
+        return await self.webhook_repo.get_subscriptions()
+
+    async def update_subscription(
+        self, webhook_id: int, update_data: dict
+    ) -> WebhookSubscription:
+        if not update_data:
+            raise BusinessLogicException(message="No fields to update")
+
+        updated_sub = await self.webhook_repo.update_subscription(
+            webhook_id, update_data
+        )
+
+        if not updated_sub:
+            raise NotFoundException(message="Subscription not found")
+
+        await self.session.commit()
+        return updated_sub
+
+    async def delete_subscription(self, webhook_id: int) -> None:
+        await self.webhook_repo.delete_subscription(webhook_id)
+        await self.session.commit()
+
+    async def get_webhook_deliveries(
+        self, webhook_id: int, limit: int = 20, offset: int = 0
+    ):
+        return await self.webhook_repo.get_deliveries(webhook_id, limit, offset)
 
     async def _trigger_event(self, event_type: str, data: BaseModel):
-        """
-        Внутренний метод: оборачивает данные в итоговый JSON, ищет подписчиков
-        и отправляет задания курьеру (Celery).
-        """
-        # Формируем итоговый payload
         event_payload = BaseWebhookEvent(
-            event=event_type, timestamp=datetime.now(UTC), data=data.model_dump(mode="json")
+            event=event_type,
+            timestamp=datetime.now(UTC),
+            data=data.model_dump(mode="json"),
         ).model_dump(mode="json")
 
-        # Ищем активных подписчиков именно на этот event_type
         stmt = select(WebhookSubscription).where(
-            WebhookSubscription.is_active.is_(True), WebhookSubscription.events.any(event_type)
+            WebhookSubscription.is_active.is_(True),
+            WebhookSubscription.events.any(event_type),
         )
         subscribers = (await self.session.scalars(stmt)).all()
 
         if not subscribers:
             return
 
-        # Создаем доставки (конверты) в БД
         deliveries = []
         for sub in subscribers:
             delivery = WebhookDelivery(
@@ -55,31 +95,27 @@ class WebhookService:
 
         await self.session.flush()
 
-        # Ставим задачи в Celery
+        from app.tasks.webhooks import send_webhook_delivery
+
         for delivery in deliveries:
             send_webhook_delivery.apply_async(args=[delivery.id], countdown=2)
 
     async def _trigger_events_bulk(self, event_type: str, events_data: list[BaseModel]):
-        """
-        Оптимизированный метод для массовой отправки.
-        Делает SELECT подписчиков только 1 раз.
-        """
-        # 1. Ищем подписчиков ОДИН раз для всех событий
         stmt = select(WebhookSubscription).where(
-            WebhookSubscription.is_active.is_(True), WebhookSubscription.events.any(event_type)
+            WebhookSubscription.is_active.is_(True),
+            WebhookSubscription.events.any(event_type),
         )
         subscribers = (await self.session.scalars(stmt)).all()
 
         if not subscribers:
             return
 
-        # 2. Формируем все доставки в памяти
         deliveries = []
         for data in events_data:
             event_payload = BaseWebhookEvent(
                 event=event_type,
                 timestamp=datetime.now(UTC),
-                data=data.model_dump(mode="json")
+                data=data.model_dump(mode="json"),
             ).model_dump(mode="json")
 
             for sub in subscribers:
@@ -91,16 +127,15 @@ class WebhookService:
                 )
                 deliveries.append(delivery)
 
-        # 3. Сохраняем все доставки одним запросом
         self.session.add_all(deliveries)
         await self.session.flush()
 
-        # 4. Массово ставим задачи в Celery
+        from app.tasks.webhooks import send_webhook_delivery
+
         for delivery in deliveries:
             send_webhook_delivery.apply_async(args=[delivery.id], countdown=2)
 
     async def trigger_batches_created_bulk(self, batches: list):
-        """Принимает список созданных объектов Batch"""
         events_data = []
         for batch in batches:
             data = BatchCreatedData(
@@ -114,7 +149,6 @@ class WebhookService:
 
         await self._trigger_events_bulk("batch_created", events_data)
 
-    # 1. Партия создана
     async def trigger_batch_created(
         self,
         batch_id: int,
@@ -132,21 +166,27 @@ class WebhookService:
         )
         await self._trigger_event("batch_created", data)
 
-    # 2. Партия обновлена
-    async def trigger_batch_updated(self, batch_id: int, batch_number: str | int, changes: dict):
+    async def trigger_batch_updated(
+        self, batch_id: int, batch_number: str | int, changes: dict
+    ):
         data = BatchUpdatedData(id=batch_id, batch_number=batch_number, changes=changes)
         await self._trigger_event("batch_updated", data)
 
-    # 3. Партия закрыта
     async def trigger_batch_closed(
-        self, batch_id: int, batch_number: str | int, closed_at: datetime, statistics: dict
+        self,
+        batch_id: int,
+        batch_number: str | int,
+        closed_at: datetime,
+        statistics: dict,
     ):
         data = BatchClosedData(
-            id=batch_id, batch_number=batch_number, closed_at=closed_at, statistics=statistics
+            id=batch_id,
+            batch_number=batch_number,
+            closed_at=closed_at,
+            statistics=statistics,
         )
         await self._trigger_event("batch_closed", data)
 
-    # 4. Продукт агрегирован
     async def trigger_product_aggregated(
         self, unique_codes: list[str], batch_id: int, aggregated_at: datetime
     ):
@@ -157,7 +197,6 @@ class WebhookService:
         )
         await self._trigger_event("product_aggregated", data)
 
-    # 5. Отчет сгенерирован
     async def trigger_report_generated(
         self, batch_id: int, report_type: str, file_url: str
     ):
@@ -166,7 +205,6 @@ class WebhookService:
         )
         await self._trigger_event("report_generated", data)
 
-    # 6. Импорт завершен
     async def trigger_import_completed(
         self, total_rows: int, created: int, skipped: int, errors: list[dict]
     ):
@@ -177,3 +215,86 @@ class WebhookService:
             errors=[ImportErrorDetail(**err) for err in errors],
         )
         await self._trigger_event("import_completed", data)
+
+    async def get_deliveries_for_retry(self) -> list[WebhookDelivery]:
+        return await self.webhook_repo.get_deliveries_for_retry()
+
+    async def process_delivery(self, delivery_id: int) -> dict:
+        delivery = (
+            await self.session.scalars(
+                select(WebhookDelivery)
+                .options(selectinload(WebhookDelivery.subscription))
+                .where(WebhookDelivery.id == delivery_id)
+            )
+        ).first()
+
+        if not delivery:
+            return {
+                "success": False,
+                "error": "not_found_in_db",
+                "retry_exc": Exception("Not found"),
+            }
+
+        if not delivery.subscription:
+            return {
+                "success": False,
+                "error": "Subscription not found",
+                "retry_exc": None,
+            }
+
+        sub = delivery.subscription
+        delivery.attempts += 1
+
+        payload_bytes = json.dumps(delivery.payload, separators=(",", ":")).encode(
+            "utf-8"
+        )
+
+        signature = hmac.new(
+            key=sub.secret_key.encode("utf-8"),
+            msg=payload_bytes,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Webhook-Signature": signature,
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url=sub.url,
+                    content=payload_bytes,
+                    headers=headers,
+                    timeout=sub.timeout,
+                )
+                response.raise_for_status()
+
+            delivery.status = "success"
+            delivery.response_status = response.status_code
+            delivery.response_body = response.text[:500]
+            delivery.error_message = None
+            delivery.delivered_at = datetime.now(UTC)
+
+            await self.session.commit()
+            return {"success": True, "retry_exc": None}
+
+        except httpx.HTTPError as e:
+            delivery.status = "failed"
+            delivery.error_message = str(e)
+
+            if hasattr(e, "response") and e.response:
+                delivery.response_status = e.response.status_code
+                delivery.response_body = e.response.text[:500]
+
+            await self.session.commit()
+
+            retry_exc = None
+            if delivery.attempts < sub.retry_count:
+                retry_exc = e
+
+            return {
+                "success": False,
+                "retry_exc": retry_exc,
+                "attempts": delivery.attempts,
+            }

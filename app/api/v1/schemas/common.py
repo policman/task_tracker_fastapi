@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -39,8 +40,10 @@ class DashboardStatisticsResponse(BaseModel):
     top_work_centers: list[TopWorkCenter]
     cached_at: datetime
 
+
 class CompareBatchesRequest(BaseModel):
     batch_ids: list[int]
+
 
 class BatchComparison(BaseModel):
     batch_id: int
@@ -51,9 +54,11 @@ class BatchComparison(BaseModel):
     duration_hours: float
     products_per_hour: float
 
+
 class AverageComparison(BaseModel):
     aggregation_rate: float
     products_per_hour: float
+
 
 class CompareBatchesResponse(BaseModel):
     comparison: list[BatchComparison]

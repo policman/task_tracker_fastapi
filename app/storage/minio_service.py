@@ -17,7 +17,9 @@ class MinIOService:
         )
 
     def list_objects(self, bucket: str, prefix: str = "", recursive: bool = True):
-        return self.client.list_objects(bucket_name=bucket, prefix=prefix, recursive=recursive)
+        return self.client.list_objects(
+            bucket_name=bucket, prefix=prefix, recursive=recursive
+        )
 
     def upload_file(
         self,
@@ -39,8 +41,11 @@ class MinIOService:
         object_name: str,
         file_data: BinaryIO,
         length: int,
-        content_type: str = "application/octet-stream",
+        content_type: str | None = None,
     ):
+        if content_type is None:
+            content_type = self._get_content_type(object_name)
+
         self.client.put_object(
             bucket,
             object_name,
@@ -50,13 +55,32 @@ class MinIOService:
         )
         return object_name
 
-    def get_presigned_url(self, bucket: str, object_name: str, expires_days: int = 7) -> str:
+    def _get_content_type(self, filename_or_path: str) -> str:
+        ext = os.path.splitext(filename_or_path)[1].lower()
+
+        content_types = {
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xls": "application/vnd.ms-excel",
+            ".csv": "text/csv",
+            ".pdf": "application/pdf",
+            ".json": "application/json",
+        }
+
+        return content_types.get(ext, "application/octet-stream")
+
+    def get_presigned_url(
+        self, bucket: str, object_name: str, expires_days: int = 7
+    ) -> str:
         return self.client.presigned_get_object(
-            bucket_name=bucket, object_name=object_name, expires=timedelta(days=expires_days)
+            bucket_name=bucket,
+            object_name=object_name,
+            expires=timedelta(days=expires_days),
         )
 
     def download_file(self, bucket: str, object_name: str, file_path: str):
-        self.client.fget_object(bucket_name=bucket, object_name=object_name, file_path=file_path)
+        self.client.fget_object(
+            bucket_name=bucket, object_name=object_name, file_path=file_path
+        )
 
     def delete_object(self, bucket: str, object_name: str):
         self.client.remove_object(bucket_name=bucket, object_name=object_name)
@@ -73,19 +97,6 @@ class MinIOService:
                 deleted_count += 1
 
         return deleted_count
-
-    def _get_content_type(self, file_path: str) -> str:
-        ext = os.path.splitext(file_path)[1].lower()
-
-        content_types = {
-            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".xls": "application/vnd.ms-excel",
-            ".csv": "text/csv",
-            ".pdf": "application/pdf",
-            ".json": "application/json",
-        }
-
-        return content_types.get(ext, "application/octet-stream")
 
 
 storage_service = MinIOService()

@@ -1,200 +1,109 @@
 import uuid
-from datetime import datetime, UTC
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, File, UploadFile, status
 
 from app.api.v1.schemas.batch import (
-    BatchCreate,
-    BatchExportFilter,
+    BatchBulkCreate,
+    BatchExportRequest,
     BatchFilter,
     BatchResponse,
-    BatchStatistics,
+    BatchResponseList,
     BatchUpdate,
     BatchWithProductsResponse,
-    ReportRequestSchema, ExtendedBatchStatisticsResponse,
+    ExtendedBatchStatisticsResponse,
+    ReportRequestSchema,
 )
 from app.api.v1.schemas.product import AggregateProductsRequest
-from app.core.cache import cached, redis_service
+from app.core.cache import cached
 from app.core.config import settings
-from app.core.database import db_helper
-from app.data.repositories.batch_repository import BatchRepository
-from app.data.repositories.product_repository import ProductRepository
+from app.core.dependencies import get_batch_service, get_product_service
+from app.core.exceptions import BusinessLogicException
+from app.domain.services.batch_service import BatchService
+from app.domain.services.product_service import ProductService
 from app.storage.minio_service import storage_service
-from app.tasks.aggregation import aggregate_products_batch
+from app.tasks.aggregation import aggregate_batch_products
 from app.tasks.exports import export_batches_to_file
 from app.tasks.imports import import_batches_from_file
 from app.tasks.reports import generate_batch_report
-from app.domain.services.webhook_service import WebhookService
 
-router = APIRouter(prefix="/batches", tags=["Batches"])
-
-from sqlalchemy.exc import SQLAlchemyError
+router = APIRouter(prefix="/api/v1/batches", tags=["Batches"])
 
 
-@router.post("", response_model=list[BatchResponse], status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=BatchResponseList, status_code=status.HTTP_201_CREATED)
 async def create_batches(
-    batches_in: list[BatchCreate], session: AsyncSession = Depends(db_helper.session_getter)
+    payload: BatchBulkCreate,
+    batch_service: BatchService = Depends(get_batch_service),
 ):
-    repo = BatchRepository(session)
-    webhook_service = WebhookService(session)
-    created_batches = []
+    batches_data = [batch.model_dump() for batch in payload.batches]
+    created_batches = await batch_service.bulk_create_batches(batches_data)
 
-    try:
-        for batch_pydantic in batches_in:
-            batch_dict = batch_pydantic.model_dump()
-            new_batch = await repo.create_batch(batch_dict)
-            created_batches.append(new_batch)
-
-        await webhook_service.trigger_batches_created_bulk(created_batches)
-
-        await session.commit()
-
-        await redis_service.delete("dashboard_stats")
-        await redis_service.delete_pattern("batches_filtered_list:*")
-
-        return created_batches
-
-    except SQLAlchemyError as e:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"{e} Error create batches in DB. Changes rollback",
-        )
+    return BatchResponseList(batches=created_batches)
 
 
 @router.get("/{batch_id}", response_model=BatchResponse)
-async def get_batch(batch_id: int, session: AsyncSession = Depends(db_helper.session_getter)):
-    repo = BatchRepository(session)
-    batch = await repo.get_batch(batch_id)
-
-    if not batch:
-        raise HTTPException(status_code=404, detail=f"Batch with ID {batch_id} not found")
-
-    return batch
+async def get_batch(
+    batch_id: int,
+    batch_service: BatchService = Depends(get_batch_service),
+):
+    return await batch_service.get_batch(batch_id)
 
 
 @router.get("/{batch_id}/products", response_model=BatchWithProductsResponse)
 @cached(ttl=600, key_prefix="batch_detail")
 async def get_batch_with_products(
-    batch_id: int, session: AsyncSession = Depends(db_helper.session_getter)
+    batch_id: int,
+    batch_service: BatchService = Depends(get_batch_service),
 ):
-    repo = BatchRepository(session)
-    batch_with_products = await repo.get_batch_with_products(batch_id)
-
-    if not batch_with_products:
-        raise HTTPException(
-            detail=f"Batch with ID {batch_id} not found", status_code=status.HTTP_404_NOT_FOUND
-        )
-
-    return batch_with_products
+    return await batch_service.get_batch_with_products(batch_id)
 
 
-@router.get("", response_model=list[BatchResponse])
+@router.get("", response_model=BatchResponseList)
 @cached(ttl=60, key_prefix="batches_filtered_list")
 async def get_batches_list(
-    filters: BatchFilter = Depends(), session: AsyncSession = Depends(db_helper.session_getter)
+    filters: BatchFilter = Depends(),
+    batch_service: BatchService = Depends(get_batch_service),
 ):
-    repo = BatchRepository(session)
-
-    filter_dict = filters.model_dump(exclude_none=True)
-    filtered_batches = await repo.get_filtered_batch(filter_dict)
-
-    return filtered_batches
+    batches = await batch_service.get_filtered_batch(
+        filters.model_dump(exclude_none=True)
+    )
+    return {"batches": batches}
 
 
 @router.get("/{batch_id}/statistics", response_model=ExtendedBatchStatisticsResponse)
 @cached(ttl=300, key_prefix="batch_statistics")
 async def get_batch_statistics(
-    batch_id: int, session: AsyncSession = Depends(db_helper.session_getter)
+    batch_id: int,
+    batch_service: BatchService = Depends(get_batch_service),
 ):
-    repo = BatchRepository(session)
-    batch_statistics = await repo.get_batch_statistics(batch_id)
-
-    if not batch_statistics:
-        raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
-
-    return batch_statistics
+    return await batch_service.get_batch_statistics(batch_id)
 
 
 @router.patch("/{batch_id}", response_model=BatchResponse)
 async def update_batch(
     batch_id: int,
     update_schema: BatchUpdate,
-    session: AsyncSession = Depends(db_helper.session_getter),
+    batch_service: BatchService = Depends(get_batch_service),
 ):
-    repo = BatchRepository(session)
-    webhook_service = WebhookService(session)
-
     update_dict = update_schema.model_dump(exclude_unset=True)
-
-    if not update_dict:
-        return await repo.get_batch(batch_id)
-
-    updated_batch = await repo.update_batch(batch_id, update_dict)
-
-    if not updated_batch:
-        raise HTTPException(status_code=404, detail=f"Batch with ID {batch_id} not found")
-
-    await webhook_service.trigger_batch_updated(
-        batch_id=updated_batch.id,
-        batch_number=updated_batch.batch_number,
-        changes=update_dict
-    )
-
-    if update_dict.get("is_closed") is True:
-        stats = {}
-        await webhook_service.trigger_batch_closed(
-            batch_id=updated_batch.id,
-            batch_number=updated_batch.batch_number,
-            closed_at=updated_batch.closed_at,
-            statistics=stats
-        )
-
-    await session.commit()
-
-    await redis_service.delete(f"batch_detail:{batch_id}")
-    await redis_service.delete(f"batch_statistics:{batch_id}")
-    await redis_service.delete("dashboard_stats")
-    await redis_service.delete_pattern("batches_list:*")
-
-    return updated_batch
+    return await batch_service.update_batch(batch_id, update_dict)
 
 
 @router.post("/{batch_id}/aggregate")
 async def aggregate_products(
     batch_id: int,
     payload: AggregateProductsRequest,
-    session: AsyncSession = Depends(db_helper.session_getter),
+    product_service: ProductService = Depends(get_product_service),
 ) -> dict:
-    repo = ProductRepository(session)
-    webhook_service = WebhookService(session)
-
-    result = await repo.aggregate_products_batch(batch_id, payload.unique_codes)
-
-    if result["aggregated"] == 0:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No products were aggregated. Errors: {result['errors']}"
-        )
-
-    await webhook_service.trigger_product_aggregated(
-        unique_codes=result["updated_codes"],
-        batch_id=batch_id,
-        aggregated_at=datetime.now(UTC)
+    return await product_service.aggregate_batch_products(
+        batch_id, payload.unique_codes
     )
-    await session.commit()
-
-    await redis_service.delete("dashboard_stats")
-    await redis_service.delete(f"batch_detail:batch_id_{batch_id}")
-    await redis_service.delete(f"batch_statistics:batch_id_{batch_id}")
-
-    return {"message": f"Successfully aggregated {result['aggregated']} products."}
 
 
 @router.post("/{batch_id}/aggregate-async", status_code=status.HTTP_202_ACCEPTED)
-def aggregate_products_async(batch_id: int, products_list: AggregateProductsRequest):
-    task = aggregate_products_batch.delay(batch_id, products_list.unique_codes)
+def aggregate_products_async(
+    batch_id: int, products_list: AggregateProductsRequest
+) -> dict:
+    task = aggregate_batch_products.delay(batch_id, products_list.unique_codes)
 
     return {
         "task_id": task.id,
@@ -207,7 +116,11 @@ def aggregate_products_async(batch_id: int, products_list: AggregateProductsRequ
 def batch_generate_report(batch_id: int, payload: ReportRequestSchema):
     task = generate_batch_report.delay(batch_id, payload.format, payload.email)
 
-    return {"task_id": task.id, "status": "PENDING"}
+    return {
+        "task_id": task.id,
+        "status": "PENDING",
+        "message": "Report generation task started",
+    }
 
 
 @router.post("/import", status_code=status.HTTP_202_ACCEPTED)
@@ -215,7 +128,7 @@ def import_batches(file: UploadFile = File(...)):
     ext = file.filename.split(".")[-1]
 
     if ext not in ["csv", "xlsx"]:
-        raise HTTPException(status_code=400, detail="Only .csv and .xlsx files allowed")
+        raise BusinessLogicException(message="Only .csv and .xlsx files allowed")
 
     object_name = f"import_{uuid.uuid4().hex}.{ext}"
 
@@ -225,21 +138,23 @@ def import_batches(file: UploadFile = File(...)):
             object_name=object_name,
             file_data=file.file,
             length=file.size,
-            content_type=file.content_type,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"MinIO error: {str(e)}")
+        raise e
 
     task = import_batches_from_file.delay(object_name)
 
-    return {"task_id": task.id, "status": "PENDING", "message": "File uploaded, import started"}
+    return {
+        "task_id": task.id,
+        "status": "PENDING",
+        "message": "File uploaded, import started",
+    }
 
 
 @router.post("/export", status_code=status.HTTP_202_ACCEPTED)
-async def export_batches(filters: BatchExportFilter, format_file: str = "excel"):
-    if format_file not in ["csv", "excel"]:
-        raise HTTPException(status_code=400, detail="Only .csv and .xlsx files allowed")
-
-    task = export_batches_to_file.delay(filters.model_dump(exclude_none=True), format_file)
+def export_batches(payload: BatchExportRequest):
+    task = export_batches_to_file.delay(
+        payload.filters.model_dump(exclude_none=True), payload.format_file
+    )
 
     return {"task_id": task.id}

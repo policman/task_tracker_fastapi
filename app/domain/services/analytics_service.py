@@ -1,4 +1,8 @@
-from app.api.v1.schemas.task import BatchGenerateData, ProductsReportData, StatsReportData
+from app.api.v1.schemas.task import (
+    BatchGenerateData,
+    ProductsReportData,
+    StatsReportData,
+)
 
 
 async def stats_report_data(

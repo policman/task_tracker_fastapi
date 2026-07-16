@@ -1,30 +1,18 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, status
 
 from app.api.v1.schemas.product import ProductCreate, ProductResponse
-from app.core.database import db_helper
-from app.data.repositories.product_repository import ProductRepository
-from app.core.cache import redis_service
+from app.core.dependencies import get_product_service
+from app.domain.services.product_service import ProductService
 
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(prefix="/api/v1/products", tags=["Products"])
 
 
-@router.post("", response_model=list[ProductResponse], status_code=201)
+@router.post(
+    "", response_model=list[ProductResponse], status_code=status.HTTP_201_CREATED
+)
 async def create_products(
-    products_in: list[ProductCreate], session: AsyncSession = Depends(db_helper.session_getter)
+    products_in: list[ProductCreate],
+    product_service: ProductService = Depends(get_product_service),
 ):
-    repo = ProductRepository(session)
-
     products_dict_list = [product.model_dump() for product in products_in]
-
-    created_products = await repo.create_products(products_dict_list)
-
-    await session.commit()
-
-    await redis_service.delete("dashboard_stats")
-
-    for product in created_products:
-        await redis_service.delete(f"batch_detail:batch_id_{product.batch_id}")
-        await redis_service.delete(f"batch_statistics:batch_id_{product.batch_id}")
-
-    return created_products
+    return await product_service.create_products(products_dict_list)

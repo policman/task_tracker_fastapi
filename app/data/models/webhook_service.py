@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ARRAY, JSON, ForeignKey, String, text, DateTime
+from sqlalchemy import ARRAY, JSON, DateTime, ForeignKey, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -46,4 +46,6 @@ class WebhookDelivery(Base):
     created_at: Mapped[created_at_type]
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    subscription: Mapped["WebhookSubscription"] = relationship(back_populates="deliveries")
+    subscription: Mapped["WebhookSubscription"] = relationship(
+        back_populates="deliveries"
+    )

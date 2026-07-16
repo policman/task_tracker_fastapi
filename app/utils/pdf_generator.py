@@ -2,14 +2,19 @@ import tempfile
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML
 
-from app.api.v1.schemas.task import BatchGenerateData, ProductsReportData, StatsReportData
+from app.api.v1.schemas.task import (
+    BatchGenerateData,
+    ProductsReportData,
+    StatsReportData,
+)
 
 
 def generate_batch_pdf_report(
     batch: BatchGenerateData, products: ProductsReportData, stats: StatsReportData
 ) -> str:
+    from weasyprint import HTML
+
     env = Environment(loader=FileSystemLoader("app/templates"))
     template = env.get_template("batch_report.html")
 

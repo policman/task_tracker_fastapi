@@ -2,35 +2,32 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.models.webhook_service import WebhookDelivery, WebhookSubscription
+from app.data.repositories.base_repository import BaseRepository
 
 
-class WebhookRepository:
+class WebhookRepository(BaseRepository[WebhookSubscription]):
     def __init__(self, session: AsyncSession):
         self.session = session
-
-    async def create_subscription(self, data: dict) -> WebhookSubscription:
-        new_sub = WebhookSubscription(**data)
-        self.session.add(new_sub)
-        await self.session.flush()
-        return new_sub
+        super().__init__(model=WebhookDelivery, session=session)
 
     async def get_subscriptions(self) -> list[WebhookSubscription]:
-        subs = await self.session.scalars(select(WebhookSubscription))
+        subs = await self.session.scalars(select(self.model))
         return list(subs.all())
 
-    async def update_subscription(self, webhook_id: int, data: dict) -> WebhookSubscription | None:
-
-        updated_sub = await self.session.scalars(
-            update(WebhookSubscription)
-            .where(WebhookSubscription.id == webhook_id)
+    async def update_subscription(
+        self, webhook_id: int, data: dict
+    ) -> WebhookSubscription | None:
+        updated_sub = await self.session.execute(
+            update(self.model)
+            .where(self.model.id == webhook_id)
             .values(**data)
-            .returning(WebhookSubscription)
+            .returning(self.model)
         )
-        return updated_sub.first()
+        return updated_sub.scalar_one_or_none()
 
     async def delete_subscription(self, webhook_id: int) -> None:
         await self.session.execute(
-            delete(WebhookSubscription).where(WebhookSubscription.id == webhook_id)
+            delete(self.model).where(self.model.id == webhook_id)
         )
 
     async def get_deliveries(
@@ -48,7 +45,10 @@ class WebhookRepository:
     async def get_deliveries_for_retry(self) -> list[WebhookDelivery]:
         dels_for_retry = await self.session.scalars(
             select(WebhookDelivery)
-            .join(WebhookSubscription, WebhookSubscription.id == WebhookDelivery.subscription_id)
+            .join(
+                WebhookSubscription,
+                WebhookSubscription.id == WebhookDelivery.subscription_id,
+            )
             .where(
                 WebhookDelivery.status == "failed",
                 WebhookDelivery.attempts < WebhookSubscription.retry_count,

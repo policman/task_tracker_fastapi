@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -22,6 +23,10 @@ class BatchCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class BatchBulkCreate(BaseModel):
+    batches: list[BatchCreate]
+
+
 class BatchUpdate(BaseModel):
     is_closed: bool | None = None
 
@@ -33,6 +38,10 @@ class BatchResponse(BaseModel):
     batch_date: date
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BatchResponseList(BaseModel):
+    batches: list[BatchResponse]
 
 
 class BatchWithProductsResponse(BaseModel):
@@ -51,6 +60,11 @@ class BatchExportFilter(BaseModel):
     date_to: date | None = None
 
 
+class BatchExportRequest(BaseModel):
+    filters: BatchExportFilter
+    format_file: Literal["csv", "excel"] = "excel"
+
+
 class BatchFilter(BaseModel):
     is_closed: bool | None = None
     batch_number: int | None = None
@@ -65,19 +79,6 @@ class BatchFilter(BaseModel):
 class ReportRequestSchema(BaseModel):
     format: str = "excel"
     email: EmailStr | None = None
-
-
-class BatchExportFilters(BaseModel):
-    is_closed: bool | None = None
-    date_from: date | None = None
-    date_to: date | None = None
-
-
-class BatchStatistics(BaseModel):
-    total_products: int
-    aggregated: int
-    remaining: int
-    rate: float
 
 
 class BatchInfo(BaseModel):

@@ -14,9 +14,11 @@ def parse_excel_generator(file_path: str) -> Generator[tuple[int, dict[str, Any]
     for row_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
         if row_idx == 1:
             headers = [
-                str(cell).replace(" ", "").replace("\n", "").strip()
-                if cell is not None
-                else f"col_{j}"
+                (
+                    str(cell).replace(" ", "").replace("\n", "").strip()
+                    if cell is not None
+                    else f"col_{j}"
+                )
                 for j, cell in enumerate(row)
             ]
             continue

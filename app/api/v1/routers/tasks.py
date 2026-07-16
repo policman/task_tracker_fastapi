@@ -3,7 +3,7 @@ from fastapi import APIRouter
 
 from app.celery_app import celery_app
 
-router = APIRouter(prefix="/tasks", tags=["Tasks"])
+router = APIRouter(prefix="/api/v1/tasks", tags=["Tasks"])
 
 
 @router.get("/{task_id}")

@@ -11,12 +11,13 @@ from app.core.config import settings
 
 class RedisService:
     def __init__(self):
-        self.redis = Redis.from_url(settings.CELERY_RESULT_BACKEND, decode_responses=True)
+        self.redis = Redis.from_url(
+            settings.CELERY_RESULT_BACKEND, decode_responses=True
+        )
 
     async def set_cache(self, key: str, data: dict | list, expire: int = 300):
         await self.redis.set(key, json.dumps(data), ex=expire)
 
-    #
     async def get_cache(self, key: str) -> dict | list | None:
         data = await self.redis.get(key)
         if data:
@@ -24,13 +25,9 @@ class RedisService:
         return None
 
     async def delete(self, key: str):
-        """Delete one key"""
         await self.redis.delete(key)
 
     async def delete_pattern(self, pattern: str):
-        """
-        Delete all keys by mask (example 'batches_list:*').
-        """
         keys = await self.redis.keys(pattern)
         if keys:
             await self.redis.delete(*keys)
