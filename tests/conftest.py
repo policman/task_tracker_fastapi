@@ -1,16 +1,19 @@
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
 import pytest_asyncio
+from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import db_helper
 from app.data.models.base import Base
 from app.main import app
 
+load_dotenv()
+DB_HOST = os.getenv("TEST_DB_HOST", "localhost")
 TEST_DATABASE_URL = (
-    "postgresql+asyncpg://postgres:postgres@localhost:5432/test_task_tracker"
+    f"postgresql+asyncpg://postgres:postgres@{DB_HOST}:5432/test_production_control"
 )
 
 
@@ -37,7 +40,17 @@ async def db_session(async_engine):
     )
 
     async with async_session_maker() as session:
+        table_names = ", ".join(
+            f'"{table.name}"' for table in Base.metadata.sorted_tables
+        )
+        if table_names:
+            await session.execute(
+                text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE;")
+            )
+            await session.commit()
+
         yield session
+
         await session.rollback()
 
 
