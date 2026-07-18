@@ -8,6 +8,7 @@ from app.api.v1.schemas.task import (
 
 logger = logging.getLogger(__name__)
 
+
 async def stats_report_data(
     batch: BatchGenerateData, products: ProductsReportData
 ) -> StatsReportData:

@@ -29,9 +29,7 @@ class ReportService:
     ) -> dict:
         file_path = None
         try:
-            logger.info(
-                f"Start generate report {report_format} for batch {batch_id}"
-            )
+            logger.info(f"Start generate report {report_format} for batch {batch_id}")
 
             batch_data = await self.batch_service.batch_report_data(batch_id)
             products_data = await self.product_service.products_report_data(batch_id)

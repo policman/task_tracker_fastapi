@@ -57,7 +57,8 @@ class BatchImportService:
                         errors.append(
                             {
                                 "row": row_idx,
-                                "error": f"Batch №{batch_schema.batch_number} by {batch_schema.batch_date} already exists",
+                                "error": f"Batch №{batch_schema.batch_number} by "
+                                "{batch_schema.batch_date} already exists",
                             }
                         )
                         continue
@@ -111,9 +112,7 @@ class BatchImportService:
                 errors=errors,
             )
 
-            logger.info(
-                f"File {object_name} successfully imported"
-            )
+            logger.info(f"File {object_name} successfully imported")
 
             return {
                 "success": True,
