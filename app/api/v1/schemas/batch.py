@@ -1,0 +1,115 @@
+from datetime import date, datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from .product import ProductResponse
+
+
+class BatchCreate(BaseModel):
+    is_closed: bool = Field(alias="СтатусЗакрытия", default=False)
+    task_description: str = Field(alias="ПредставлениеЗаданияНаСмену")
+    work_center_name: str = Field(alias="РабочийЦентр")
+    shift: str = Field(alias="Смена")
+    team: str = Field(alias="Бригада")
+    batch_number: int = Field(alias="НомерПартии")
+    batch_date: date = Field(alias="ДатаПартии")
+    nomenclature: str = Field(alias="Номенклатура")
+    ekn_code: str = Field(alias="КодЕКН")
+    work_center_identifier: str = Field(alias="ИдентификаторРЦ")
+    shift_start: datetime = Field(alias="ДатаВремяНачалаСмены")
+    shift_end: datetime = Field(alias="ДатаВремяОкончанияСмены")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BatchBulkCreate(BaseModel):
+    batches: list[BatchCreate]
+
+
+class BatchUpdate(BaseModel):
+    is_closed: bool | None = None
+
+
+class BatchResponse(BaseModel):
+    id: int
+    is_closed: bool
+    batch_number: int
+    batch_date: date
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchResponseList(BaseModel):
+    batches: list[BatchResponse]
+
+
+class BatchWithProductsResponse(BaseModel):
+    id: int
+    batch_number: int
+    batch_date: date
+    is_closed: bool
+    products: list[ProductResponse]
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+
+class BatchExportFilter(BaseModel):
+    is_closed: bool | None = None
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class BatchExportRequest(BaseModel):
+    filters: BatchExportFilter
+    format_file: Literal["csv", "excel"] = "excel"
+
+
+class BatchFilter(BaseModel):
+    is_closed: bool | None = None
+    batch_number: int | None = None
+    batch_date: date | None = None
+    work_center_id: str | None = None
+    shift: str | None = None
+
+    offset: int = Field(default=0)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class ReportRequestSchema(BaseModel):
+    format: str = "excel"
+    email: EmailStr | None = None
+
+
+class BatchInfo(BaseModel):
+    id: int
+    batch_number: str | int
+    batch_date: date
+    is_closed: bool
+
+
+class ProductionStats(BaseModel):
+    total_products: int
+    aggregated: int
+    remaining: int
+    aggregation_rate: float
+
+
+class Timeline(BaseModel):
+    shift_duration_hours: float
+    elapsed_hours: float
+    products_per_hour: float
+    estimated_completion: datetime | None
+
+
+class TeamPerformance(BaseModel):
+    team: str
+    avg_products_per_hour: float
+    efficiency_score: float
+
+
+class ExtendedBatchStatisticsResponse(BaseModel):
+    batch_info: BatchInfo
+    production_stats: ProductionStats
+    timeline: Timeline
+    team_performance: TeamPerformance
