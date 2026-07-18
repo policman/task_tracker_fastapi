@@ -1,6 +1,3 @@
-import hashlib
-import hmac
-import json
 from datetime import UTC, datetime
 
 import httpx
@@ -22,6 +19,7 @@ from app.api.v1.schemas.webhook_events import (
 from app.core.exceptions import BusinessLogicException, NotFoundException
 from app.data.models.webhook_service import WebhookDelivery, WebhookSubscription
 from app.data.repositories.webhook_repository import WebhookRepository
+from app.utils.hmac_utils import generate_webhook_signature
 
 
 class WebhookService:
@@ -245,15 +243,9 @@ class WebhookService:
         sub = delivery.subscription
         delivery.attempts += 1
 
-        payload_bytes = json.dumps(delivery.payload, separators=(",", ":")).encode(
-            "utf-8"
+        payload_bytes, signature = generate_webhook_signature(
+            sub.secret_key, delivery.payload
         )
-
-        signature = hmac.new(
-            key=sub.secret_key.encode("utf-8"),
-            msg=payload_bytes,
-            digestmod=hashlib.sha256,
-        ).hexdigest()
 
         headers = {
             "Content-Type": "application/json",
