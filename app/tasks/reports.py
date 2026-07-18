@@ -31,6 +31,6 @@ def generate_batch_report(
         return asyncio.run(_logic())
     except Exception as e:
         logger.warning(
-            f"Ошибка генерации отчета для партии {batch_id}, запуск retry. Ошибка: {e}"
+            f"Error generating report batch {batch_id}, start retry. Error: {e}"
         )
         raise self.retry(exc=e, countdown=5)
