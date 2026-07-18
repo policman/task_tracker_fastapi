@@ -9,7 +9,13 @@ from app.domain.services.report_service import ReportService
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, max_retries=3, name="generate_batch_report")
+@celery_app.task(
+    bind=True,
+    max_retries=3,
+    name="generate_batch_report_task",
+    retry_backoff=True,
+    retry_backoff_max=60,
+)
 def generate_batch_report(
     self,
     batch_id: int,

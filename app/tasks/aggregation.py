@@ -8,7 +8,13 @@ from app.core.exceptions import BusinessLogicException
 from app.domain.services.product_service import ProductService
 
 
-@celery_app.task(bind=True, max_retries=3)
+@celery_app.task(
+    bind=True,
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=60,
+    name="aggregate_batch_products_task",
+)
 def aggregate_batch_products(
     self, batch_id: int, unique_codes: list[str], user_id: int | None = None
 ):

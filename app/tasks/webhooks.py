@@ -6,7 +6,12 @@ from app.core.database import DatabaseHelper
 from app.domain.services.webhook_service import WebhookService
 
 
-@celery_app.task(bind=True, name="send_webhook_delivery")
+@celery_app.task(
+    bind=True,
+    name="send_webhook_delivery_task",
+    retry_backoff=True,
+    retry_backoff_max=60,
+)
 def send_webhook_delivery(self, delivery_id: int):
     retry_exc = None
     retry_countdown = 60

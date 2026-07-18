@@ -9,7 +9,13 @@ from app.domain.services.export_service import BatchExportService
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, max_retries=3)
+@celery_app.task(
+    bind=True,
+    max_retries=3,
+    retry_backoff=True,
+    retry_backoff_max=60,
+    name="export_batches_to_file_task",
+)
 def export_batches_to_file(self, filters: dict, format_file: str = "excel"):
     async def _logic():
         db_local = DatabaseHelper(database_url=settings.database_url, echo=False)
