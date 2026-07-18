@@ -30,7 +30,7 @@ class ReportService:
         file_path = None
         try:
             logger.info(
-                f"Начало генерации отчета {report_format} для партии {batch_id}"
+                f"Start generate report {report_format} for batch {batch_id}"
             )
 
             batch_data = await self.batch_service.batch_report_data(batch_id)
@@ -77,4 +77,4 @@ class ReportService:
         finally:
             if file_path and os.path.exists(file_path):
                 os.remove(file_path)
-                logger.debug(f"Локальный файл отчета {file_path} удален.")
+                logger.debug(f"Local tmp file {file_path} deleted.")

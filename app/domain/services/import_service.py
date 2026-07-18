@@ -44,7 +44,7 @@ class BatchImportService:
             errors = []
             batches_for_webhook = []
 
-            logger.info(f"Начало обработки файла импорта: {object_name}")
+            logger.info(f"Start processing import file: {object_name}")
 
             for row_idx, row_data in row_generator:
                 try:
@@ -87,6 +87,7 @@ class BatchImportService:
                     )
 
                 except Exception as e:
+                    logger.error(f"Error with saving import file {object_name}")
                     await self.session.rollback()
                     skipped += 1
                     errors.append({"row": row_idx, "error": f"Saving error: {str(e)}"})
@@ -111,7 +112,7 @@ class BatchImportService:
             )
 
             logger.info(
-                f"Импорт завершен. Создано: {created}, Пропущено: {skipped}, Ошибок: {len(errors)}"
+                f"File {object_name} successfully imported"
             )
 
             return {

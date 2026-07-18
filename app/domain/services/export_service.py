@@ -35,9 +35,7 @@ class BatchExportService:
                 file_path=file_path,
             )
 
-            logger.info(
-                f"Экспорт успешно завершен. Ссылка сгенерирована: {object_name}"
-            )
+            logger.info(f"Export file {object_name} completed")
 
             return {
                 "success": True,
@@ -48,4 +46,4 @@ class BatchExportService:
         finally:
             if file_path and os.path.exists(file_path):
                 os.remove(file_path)
-                logger.debug(f"Временный файл {file_path} удален.")
+                logger.debug(f"Temp file {file_path} deleted.")

@@ -106,8 +106,10 @@ class BatchService:
 
     async def get_batch_statistics(self, batch_id: int) -> dict:
         batch = await self.get_batch(batch_id)
+        logger.info(f"Got batch {batch_id} for statistics")
 
         counts = await self.batch_repo.get_batch_product_counts(batch_id)
+        logger.info(f"Got batch {batch_id} product counts")
 
         total = counts["total"]
         aggregated = counts["aggregated"]
@@ -199,7 +201,6 @@ class BatchService:
             batch_number=updated_batch.batch_number,
             changes=update_data,
         )
-
         if update_data.get("is_closed") is True:
             stats = await self.get_batch_statistics(batch_id)
 
