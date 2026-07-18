@@ -23,3 +23,9 @@ async def get_webhook_service(
     session: AsyncSession = Depends(db_helper.session_getter),
 ) -> WebhookService:
     return WebhookService(session)
+
+
+async def get_db(
+    session: AsyncSession = Depends(db_helper.session_getter),
+):
+    return session
